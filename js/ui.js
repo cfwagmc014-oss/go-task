@@ -95,9 +95,14 @@
   };
 
   /* run an action → toast → refresh */
+  let busy = false;
   UI.run = async (fn, okMsg, noRefresh) => {
+    if (busy) return UI.toast('กำลังดำเนินการอยู่ กรุณารอสักครู่...', true);
+    busy = true;
+    document.body.style.cursor = 'progress';
     try { await fn(); if (okMsg) UI.toast(okMsg); if (!noRefresh) await UI.refresh(); }
     catch (e) { UI.toast(e.message || String(e), true); }
+    finally { busy = false; document.body.style.cursor = ''; }
   };
 
   /* charts */
