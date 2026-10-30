@@ -216,7 +216,8 @@
       <div class="fld"><label>ผู้รับผิดชอบ * (เลือกได้หลายคน — แต่ละคนมีสถานะแยกกัน)</label>
         <div style="max-height:240px;overflow:auto">${cands.map((u) => `<label class="chk"><input type="checkbox" name="f-asg" value="${u.id}" ${sel.includes(u.id) ? 'checked' : ''}> <span>${esc(u.full_name)} <span class="sub">· ${UI.ROLE[u.role]} · ${esc(UI.dname(u.department_id))}</span></span></label>`).join('') || '<div class="sub">ไม่มีพนักงานในความดูแลของคุณ — ให้ Admin กำหนดทีมก่อน</div>'}</div></div>
       ${t ? '' : `<div class="fld"><label>Checklist / Subtasks (บรรทัดละ 1 รายการ)</label><textarea id="f-subs"></textarea></div>
-      <div class="fld"><label>ลิงก์เอกสารอ้างอิง (บรรทัดละ 1 ลิงก์ ขึ้นต้น http)</label><textarea id="f-links"></textarea></div>`}
+      <div class="fld"><label>ลิงก์เอกสารอ้างอิง (บรรทัดละ 1 ลิงก์ ขึ้นต้น http)</label><textarea id="f-links"></textarea></div>
+      <div class="fld"><label>แนบไฟล์ / รูปภาพ (เลือกได้หลายไฟล์ ไม่เกิน 5 MB ต่อไฟล์)</label><input type="file" id="f-files" multiple></div>`}
       <div class="row" style="justify-content:flex-end"><a class="btn" href="${t ? '#/task/' + t.id : '#/dashboard'}">ยกเลิก</a><button class="btn pri" data-act="save-task" data-id="${t ? t.id : ''}">${t ? 'บันทึก' : 'สร้างและมอบหมายงาน'}</button></div>
     </div>`;
   };
@@ -234,7 +235,15 @@
       p.recurrence = val('f-rec') || 'none';
       p.subtasks = val('f-subs').split('\n').map((s) => s.trim()).filter(Boolean);
       p.links = val('f-links').split('\n').map((s) => s.trim()).filter((s) => /^https?:\/\//i.test(s));
-      UI.run(async () => { const nid = await api.createTask(p); await UI.refresh(true); location.hash = '#/task/' + nid; }, 'สร้างและมอบหมายงานแล้ว', true);
+      const files = Array.from((document.getElementById('f-files') || {}).files || []);
+      if (files.some((f) => f.size > 5 * 1024 * 1024)) return UI.toast('มีไฟล์ใหญ่เกิน 5 MB', true);
+      UI.run(async () => {
+        const nid = await api.createTask(p);
+        const failed = [];
+        for (const f of files) { try { await api.addFile(nid, f); } catch (e) { failed.push(f.name); } }
+        if (failed.length) UI.toast('สร้างงานแล้ว แต่แนบไฟล์ไม่สำเร็จ: ' + failed.join(', ') + ' (แนบใหม่ที่หน้างาน)', true);
+        await UI.refresh(true); location.hash = '#/task/' + nid;
+      }, files.length ? 'สร้างงานและแนบไฟล์แล้ว' : 'สร้างและมอบหมายงานแล้ว', true);
     }
   };
 })();

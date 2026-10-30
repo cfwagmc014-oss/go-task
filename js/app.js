@@ -69,9 +69,9 @@
     await UI.route();
     clearInterval(poll);
     poll = setInterval(async () => {
-      if (!S.me) return;
+      if (!S.me || document.hidden) return;
       try { const c = await api.loadAll(); S.ctx.notifications = c.notifications; const n = c.notifications.filter((x) => !x.read_at).length, b = $('#bellcount'); if (b) { b.textContent = n; b.hidden = !n; } const p = $('#notif'); if (p) p.innerHTML = notifHtml(); } catch (e) { /* เงียบ — ลองใหม่รอบถัดไป */ }
-    }, 60000);
+    }, 120000);
   };
 
   /* built-in actions */
