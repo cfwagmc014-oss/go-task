@@ -100,14 +100,24 @@
     const link = location.origin + location.pathname + '#/task/' + t.id;
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('[GO TASK] ' + t.task_no + ' ' + t.title) + '&dates=' + f(st) + '/' + f(due) + '&details=' + encodeURIComponent((t.description ? t.description + '\n\n' : '') + link) + '&ctz=Asia%2FBangkok';
   };
+  UI.lastBtn = null;
   let busy = false;
   UI.run = async (fn, okMsg, noRefresh) => {
     if (busy) return UI.toast('กำลังดำเนินการอยู่ กรุณารอสักครู่...', true);
     busy = true;
     document.body.style.cursor = 'progress';
+    /* ล็อกปุ่มทั้งหน้าระหว่างบันทึก กันกดซ้ำ — ปุ่มที่กดแสดง "กำลังบันทึก..." */
+    const clicked = UI.lastBtn, locked = Array.from(document.querySelectorAll('.page button[data-act], .page a.btn'));
+    locked.forEach((b) => { b.dataset.lk = b.tagName === 'BUTTON' ? (b.disabled ? '0' : '1') : '2'; if (b.tagName === 'BUTTON') b.disabled = true; else { b.style.pointerEvents = 'none'; b.style.opacity = '.6'; } });
+    let oldTxt = null;
+    if (clicked && clicked.tagName === 'BUTTON' && document.body.contains(clicked)) { oldTxt = clicked.textContent; clicked.textContent = '⏳ กำลังบันทึก...'; }
     try { await fn(); if (okMsg) UI.toast(okMsg); if (!noRefresh) await UI.refresh(); }
     catch (e) { UI.toast(e.message || String(e), true); }
-    finally { busy = false; document.body.style.cursor = ''; }
+    finally {
+      busy = false; document.body.style.cursor = '';
+      locked.forEach((b) => { if (!document.body.contains(b)) return; if (b.dataset.lk === '1') b.disabled = false; else if (b.dataset.lk === '2') { b.style.pointerEvents = ''; b.style.opacity = ''; } });
+      if (oldTxt !== null && document.body.contains(clicked)) clicked.textContent = oldTxt;
+    }
   };
 
   /* charts */

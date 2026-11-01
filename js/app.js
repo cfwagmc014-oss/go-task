@@ -104,7 +104,7 @@
     if (S.draftMenuOpen && !e.target.closest('#draftmenu') && !e.target.closest('#draftbtn')) { S.draftMenuOpen = false; const m = $('#draftmenu'); if (m) m.hidden = true; }
     if (S.notifOpen && !e.target.closest('#notif') && !e.target.closest('.bell')) { S.notifOpen = false; const p = $('#notif'); if (p) p.hidden = true; }
     const a = e.target.closest('[data-act]');
-    if (a && A[a.dataset.act]) A[a.dataset.act](a, e);
+    if (a && A[a.dataset.act]) { UI.lastBtn = a; A[a.dataset.act](a, e); }
     const g = e.target.closest('[data-go]');
     if (g && !g.matches('a')) { const inner = e.target.closest('button,a,input,select,textarea'); if (!inner || inner === g) location.hash = g.dataset.go; }
   });
