@@ -199,27 +199,41 @@
     const t = id ? S.ctx.tasks.find((x) => x.id === id) : null, me = S.me;
     if (!Core.isLead(me)) return '<div class="card empty">เฉพาะ Admin / Manager / Supervisor เท่านั้นที่มอบหมายงานได้</div>';
     if (id && (!t || !Core.canEdit(UI.cx(), me, t))) return '<div class="card empty">ไม่พบงาน หรือไม่มีสิทธิ์แก้ไข</div>';
-    const sel = t ? t.assignees.map((a) => a.user_id) : [], cands = Core.assignable(UI.cx(), me).sort((a, b) => a.full_name.localeCompare(b.full_name, 'th'));
+    const d = !t && S.draft ? S.draft.payload || {} : null, dv = (k, def) => (d && d[k] !== undefined && d[k] !== null ? d[k] : def);
+    const sel = t ? t.assignees.map((a) => a.user_id) : dv('asg', []), cands = Core.assignable(UI.cx(), me).sort((a, b) => a.full_name.localeCompare(b.full_name, 'th'));
     const leads = S.ctx.users.filter((u) => Core.isLead(u));
     const start = t ? t.start_date : new Date().toISOString(), due = t ? t.due_date : (() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(17, 0, 0, 0); return d.toISOString(); })();
     const o = (obj, v) => Object.entries(obj).map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('');
-    return `<div class="ph"><h1>${t ? 'แก้ไขงาน ' + esc(t.task_no) : 'สร้าง / มอบหมายงานใหม่'}</h1></div>
+    const drafts = t ? '' : (S.drafts || []);
+    const draftBox = drafts.length ? `<div class="card" style="max-width:820px;margin-bottom:12px"><b>แบบร่างของฉัน (${drafts.length})</b>${drafts.map((x) => `<div class="row" style="align-items:center;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line,#eee)"><span>${S.draft && S.draft.id === x.id ? '▶ ' : ''}${esc(x.title)} <span class="sub">· ${UI.fDT(x.updated_at)}</span></span><span><button class="btn" data-act="draft-open" data-id="${x.id}">เปิด</button> <button class="btn" data-act="draft-del" data-id="${x.id}">ลบ</button></span></div>`).join('')}</div>` : '';
+    return `<div class="ph"><h1>${t ? 'แก้ไขงาน ' + esc(t.task_no) : 'สร้าง / มอบหมายงานใหม่'}</h1></div>${draftBox}${!t && S.draft ? '<div class="sub" style="max-width:820px;margin-bottom:8px">กำลังแก้แบบร่าง — กดบันทึกแบบร่างเพื่อเขียนทับ หรือสร้างงานเพื่อมอบหมายจริง (ไฟล์แนบไม่ถูกเก็บในแบบร่าง)</div>' : ''}
     <div class="card" style="max-width:820px">
-      <div class="fld"><label>ชื่องาน *</label><input id="f-title" value="${esc(t ? t.title : '')}"></div>
-      <div class="fld"><label>รายละเอียด</label><textarea id="f-desc">${esc(t ? t.description || '' : '')}</textarea></div>
-      <div class="row"><div class="fld"><label>แผนก</label><select id="f-dept"><option value="">—</option>${S.ctx.departments.map((d) => `<option value="${d.id}" ${t && t.department_id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div>
-        <div class="fld"><label>ระดับความสำคัญ</label><select id="f-prio">${o(UI.PRI, t ? t.priority : 'medium')}</select></div></div>
-      <div class="row"><div class="fld"><label>วัน-เวลาเริ่ม</label><input type="datetime-local" id="f-start" value="${UI.toLocalInput(start)}"></div>
-        <div class="fld"><label>Deadline *</label><input type="datetime-local" id="f-due" value="${UI.toLocalInput(due)}"></div></div>
-      <div class="row"><div class="fld"><label>ผู้ตรวจสอบงาน (อนุมัติปิดงาน)</label><select id="f-rev"><option value="">— ผู้สร้างงาน —</option>${leads.map((u) => `<option value="${u.id}" ${(t ? t.reviewer_id : me.id) === u.id ? 'selected' : ''}>${esc(u.full_name)} (${UI.ROLE[u.role]})</option>`).join('')}</select></div>
-        ${t ? '' : `<div class="fld"><label>งานประจำ (สร้างซ้ำอัตโนมัติ)</label><select id="f-rec">${o(UI.REC, 'none')}</select></div>`}</div>
+      <div class="fld"><label>ชื่องาน *</label><input id="f-title" value="${esc(t ? t.title : dv('title', ''))}"></div>
+      <div class="fld"><label>รายละเอียด</label><textarea id="f-desc">${esc(t ? t.description || '' : dv('desc', ''))}</textarea></div>
+      <div class="row"><div class="fld"><label>แผนก</label><select id="f-dept"><option value="">—</option>${S.ctx.departments.map((dp) => `<option value="${dp.id}" ${(t ? t.department_id : dv('dept', '')) === dp.id ? 'selected' : ''}>${esc(dp.name)}</option>`).join('')}</select></div>
+        <div class="fld"><label>ระดับความสำคัญ</label><select id="f-prio">${o(UI.PRI, t ? t.priority : dv('prio', 'medium'))}</select></div></div>
+      <div class="row"><div class="fld"><label>วัน-เวลาเริ่ม</label><input type="datetime-local" id="f-start" value="${t ? UI.toLocalInput(start) : dv('start', UI.toLocalInput(start))}"></div>
+        <div class="fld"><label>Deadline *</label><input type="datetime-local" id="f-due" value="${t ? UI.toLocalInput(due) : dv('due', UI.toLocalInput(due))}"></div></div>
+      <div class="row"><div class="fld"><label>ผู้ตรวจสอบงาน (อนุมัติปิดงาน)</label><select id="f-rev"><option value="">— ผู้สร้างงาน —</option>${leads.map((u) => `<option value="${u.id}" ${(t ? t.reviewer_id : dv('rev', '') || me.id) === u.id ? 'selected' : ''}>${esc(u.full_name)} (${UI.ROLE[u.role]})</option>`).join('')}</select></div>
+        ${t ? '' : `<div class="fld"><label>งานประจำ (สร้างซ้ำอัตโนมัติ)</label><select id="f-rec">${o(UI.REC, dv('rec', 'none'))}</select></div>`}</div>
       <div class="fld"><label>ผู้รับผิดชอบ * (เลือกได้หลายคน — แต่ละคนมีสถานะแยกกัน)</label>
         <div style="max-height:240px;overflow:auto">${cands.map((u) => `<label class="chk"><input type="checkbox" name="f-asg" value="${u.id}" ${sel.includes(u.id) ? 'checked' : ''}> <span>${esc(u.full_name)} <span class="sub">· ${UI.ROLE[u.role]} · ${esc(UI.dname(u.department_id))}</span></span></label>`).join('') || '<div class="sub">ไม่มีพนักงานในความดูแลของคุณ — ให้ Admin กำหนดทีมก่อน</div>'}</div></div>
-      ${t ? '' : `<div class="fld"><label>Checklist / Subtasks (บรรทัดละ 1 รายการ)</label><textarea id="f-subs"></textarea></div>
-      <div class="fld"><label>ลิงก์เอกสารอ้างอิง (บรรทัดละ 1 ลิงก์ ขึ้นต้น http)</label><textarea id="f-links"></textarea></div>
+      ${t ? '' : `<div class="fld"><label>Checklist / Subtasks (บรรทัดละ 1 รายการ)</label><textarea id="f-subs">${esc(dv('subs', ''))}</textarea></div>
+      <div class="fld"><label>ลิงก์เอกสารอ้างอิง (บรรทัดละ 1 ลิงก์ ขึ้นต้น http)</label><textarea id="f-links">${esc(dv('links', ''))}</textarea></div>
       <div class="fld"><label>แนบไฟล์ / รูปภาพ (เลือกได้หลายไฟล์ ไม่เกิน 5 MB ต่อไฟล์)</label><input type="file" id="f-files" multiple></div>`}
-      <div class="row" style="justify-content:flex-end"><a class="btn" href="${t ? '#/task/' + t.id : '#/dashboard'}">ยกเลิก</a><button class="btn pri" data-act="save-task" data-id="${t ? t.id : ''}">${t ? 'บันทึก' : 'สร้างและมอบหมายงาน'}</button></div>
+      <div class="row" style="justify-content:flex-end"><a class="btn" href="${t ? '#/task/' + t.id : '#/dashboard'}">ยกเลิก</a>${t ? '' : '<button class="btn" data-act="save-draft">💾 บันทึกแบบร่าง</button>'}<button class="btn pri" data-act="save-task" data-id="${t ? t.id : ''}">${t ? 'บันทึก' : 'สร้างและมอบหมายงาน'}</button></div>
     </div>`;
+  };
+  const draftPayload = () => ({ title: val('f-title'), desc: val('f-desc'), dept: val('f-dept'), prio: val('f-prio'), start: val('f-start'), due: val('f-due'), rev: val('f-rev'), rec: val('f-rec') || 'none', asg: UI.$$('input[name=f-asg]:checked').map((x) => x.value), subs: val('f-subs'), links: val('f-links') });
+  A['save-draft'] = () => UI.run(async () => {
+    const payload = draftPayload();
+    const id = await api.saveDraft({ id: S.draft ? S.draft.id : null, title: payload.title, payload });
+    S.draft = { id, payload }; S.drafts = await api.listDrafts(); UI.render();
+  }, 'บันทึกแบบร่างแล้ว', true);
+  A['draft-open'] = (el) => { const x = (S.drafts || []).find((r) => r.id === el.dataset.id); if (!x) return; S.draft = { id: x.id, payload: x.payload || {} }; UI.render(); window.scrollTo(0, 0); };
+  A['draft-del'] = (el) => {
+    if (!confirm('ลบแบบร่างนี้?')) return;
+    UI.run(async () => { await api.deleteDraft(el.dataset.id); if (S.draft && S.draft.id === el.dataset.id) S.draft = null; S.drafts = await api.listDrafts(); UI.render(); }, 'ลบแบบร่างแล้ว', true);
   };
   A['save-task'] = (el) => {
     const id = el.dataset.id, title = val('f-title').trim();
@@ -242,6 +256,7 @@
         const failed = [];
         for (const f of files) { try { await api.addFile(nid, f); } catch (e) { failed.push(f.name); } }
         if (failed.length) UI.toast('สร้างงานแล้ว แต่แนบไฟล์ไม่สำเร็จ: ' + failed.join(', ') + ' (แนบใหม่ที่หน้างาน)', true);
+        if (S.draft) { try { await api.deleteDraft(S.draft.id); } catch (e) { /* ไม่ขัดการสร้างงาน */ } S.draft = null; S.drafts = []; }
         await UI.refresh(true); location.hash = '#/task/' + nid;
       }, files.length ? 'สร้างงานและแนบไฟล์แล้ว' : 'สร้างและมอบหมายงานแล้ว', true);
     }

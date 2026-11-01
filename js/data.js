@@ -456,6 +456,27 @@
       async deleteTeam(id) { await call('deleteTeam', { id }); },
       async saveSetting(key, value) { await call('saveSetting', { key, value }); },
       lineBindCode: () => call('lineBindCode'),
+      listDrafts: () => call('listDrafts'),
+      saveDraft: (d) => call('saveDraft', d),
+      async deleteDraft(id) { await call('deleteDraft', { id }); },
+    };
+  }
+
+  /* แบบร่างเก็บในเบราว์เซอร์ (โหมดทดลอง / Supabase) — แบบ Apps Script เก็บในชีต Drafts */
+  function localDrafts(api) {
+    const key = async () => 'gotask_drafts_' + (((await api.myProfile()) || {}).id || 'x');
+    const rd = async () => { try { return JSON.parse(localStorage.getItem(await key())) || []; } catch (e) { return []; } };
+    const wr = async (a) => { try { localStorage.setItem(await key(), JSON.stringify(a)); } catch (e) { throw new Error('บันทึกแบบร่างในเบราว์เซอร์ไม่ได้'); } };
+    return {
+      async listDrafts() { return (await rd()).sort((a, b) => b.updated_at.localeCompare(a.updated_at)); },
+      async saveDraft(d) {
+        const all = await rd(), now = new Date().toISOString(), title = String(d.title || '').trim().slice(0, 200) || '(ไม่มีชื่อ)';
+        let x = d.id && all.find((r) => r.id === d.id);
+        if (x) Object.assign(x, { title, payload: d.payload, updated_at: now });
+        else { x = { id: 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title, payload: d.payload, updated_at: now }; all.push(x); }
+        await wr(all); return x.id;
+      },
+      async deleteDraft(id) { await wr((await rd()).filter((r) => r.id !== id)); },
     };
   }
 
@@ -465,5 +486,6 @@
   const wantDemo = new URLSearchParams(location.search).get('demo') === '1';
   const libMissing = !hasGas && hasSb && !window.supabase;
   const api = wantDemo || !hasKeys || libMissing ? makeDemo() : hasGas ? makeGas() : makeSupabase();
+  if (!api.listDrafts) Object.assign(api, localDrafts(api));
   window.GT = { Core, api, configured: hasKeys, hasKeys, libMissing, canDemo: !hasKeys || CFG.ALLOW_DEMO !== false, googleClientId: CFG.GOOGLE_CLIENT_ID || '' };
 })();

@@ -49,6 +49,8 @@
     S.page = page; S.arg = arg;
     try {
       S.detail = null;
+      if (page !== 'form') S.draft = null;
+      if (page === 'form' && !arg && Core.isLead(S.me)) S.drafts = await api.listDrafts();
       if (page === 'task') S.detail = { id: arg, ...(await api.detail(arg)) };
       if (page === 'users' && Core.isAdmin(S.me)) S.adminUsers = await api.listUsers();
     } catch (e) { UI.toast(e.message, true); }
