@@ -95,6 +95,11 @@
   };
 
   /* run an action → toast → refresh */
+  UI.calUrl = (t) => {
+    const f = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, ''), due = new Date(t.due_date), st = new Date(due.getTime() - 30 * 60000);
+    const link = location.origin + location.pathname + '#/task/' + t.id;
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('[GO TASK] ' + t.task_no + ' ' + t.title) + '&dates=' + f(st) + '/' + f(due) + '&details=' + encodeURIComponent((t.description ? t.description + '\n\n' : '') + link) + '&ctz=Asia%2FBangkok';
+  };
   let busy = false;
   UI.run = async (fn, okMsg, noRefresh) => {
     if (busy) return UI.toast('กำลังดำเนินการอยู่ กรุณารอสักครู่...', true);

@@ -184,6 +184,7 @@
       <div class="fld"><label>เกินกำหนด → แจ้ง Supervisor (ชั่วโมง)</label><input type="number" min="1" id="s-sup" value="${st.escalate_supervisor_hours ?? 24}"></div>
       <div class="fld"><label>เกินกำหนด → แจ้ง Manager (ชั่วโมง)</label><input type="number" min="1" id="s-mgr" value="${st.escalate_manager_hours ?? 48}"></div></div>
       <label class="chk" style="max-width:360px"><input type="checkbox" id="s-mail" ${st.email_enabled !== false ? 'checked' : ''}> เปิดการส่งอีเมลแจ้งเตือน</label>
+      ${gas ? `<label class="chk" style="max-width:520px"><input type="checkbox" id="s-cal" ${st.calendar_sync !== false ? 'checked' : ''}> ปัก Deadline ลง Google Calendar ของผู้รับผิดชอบอัตโนมัติ (ส่งคำเชิญจากปฏิทินของบัญชีเจ้าของสคริปต์)</label>` : ''}
       ${matrix}
       <p class="sub">${demo ? 'โหมดทดลองจำลองเฉพาะการแจ้งเตือนในแอป' : gas ? 'ตรวจกำหนดส่ง/Escalation ทุก 15 นาที โดย Time-driven trigger ของ Apps Script' : 'ตรวจกำหนดส่ง/Escalation โดย pg_cron บนฐานข้อมูล'}</p>
       <button class="btn pri" data-act="save-rules">บันทึก</button></div>` : '';
@@ -207,6 +208,7 @@
       await api.saveSetting('email_enabled', document.getElementById('s-mail').checked);
       if (api.mode === 'gas') {
         const channels = {}; UI.$$('.ch-in').forEach((c) => { (channels[c.dataset.t] = channels[c.dataset.t] || {})[c.dataset.k] = c.checked; });
+        await api.saveSetting('calendar_sync', document.getElementById('s-cal').checked);
         await api.saveSetting('channels', channels); await api.saveSetting('line_enabled', document.getElementById('s-line').checked);
         await api.saveSetting('line_group_supervisor', val('s-gsup').trim()); await api.saveSetting('line_group_manager', val('s-gmgr').trim());
       }

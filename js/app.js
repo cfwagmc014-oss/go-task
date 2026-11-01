@@ -17,6 +17,13 @@
       (ns.length ? ns.map((n) => `<div class="n ${n.read_at ? '' : 'un'}" data-act="notif" data-id="${n.id}" data-t="${n.task_id || ''}"><b>${esc(n.title)}</b>${esc(n.body || '')}<br><small class="sub">${UI.fDT(n.created_at)}</small></div>`).join('') : '<div class="empty">ไม่มีการแจ้งเตือน</div>');
   };
 
+  const draftMenuHtml = () => {
+    const ds = S.drafts || [];
+    return ds.length ? ds.map((x) => `<div class="n" data-act="draft-open" data-id="${x.id}"><span data-act="draft-del" data-id="${x.id}" title="ลบแบบร่าง" style="float:right;padding:0 4px">🗑</span><b>${esc(x.title)}</b><small class="sub">${UI.fDT(x.updated_at)}</small></div>`).join('') : '<div class="empty">ยังไม่มีแบบร่าง — กรอกฟอร์มมอบหมายงานแล้วกด “บันทึกแบบร่าง”</div>';
+  };
+  const draftBtnLabel = () => '📝 แบบร่าง' + ((S.drafts || []).length ? ' (' + S.drafts.length + ')' : '');
+  UI.refreshDraftMenu = () => { const m = $('#draftmenu'), b = $('#draftbtn'); if (m) { m.innerHTML = draftMenuHtml(); m.hidden = !S.draftMenuOpen; } if (b) b.textContent = draftBtnLabel(); };
+
   UI.shell = (content) => {
     const me = S.me, unread = S.ctx.notifications.filter((n) => !n.read_at).length;
     const on = (k) => S.page === k || (k === 'tasks' && S.page === 'task') || (k === 'new' && S.page === 'form');
@@ -25,8 +32,8 @@
     return `<div class="shell"><aside class="side" id="side"><div class="brand"><b>GO TASK</b><span>Go Wholesale ระยอง ST.14</span></div><nav class="nav">${nav}</nav>
       <div class="me"><b>${esc(me.full_name)}</b><br><span class="sub">${UI.ROLE[me.role]}</span><br><a href="#" data-act="logout">ออกจากระบบ</a></div></aside>
       <div class="main"><div class="top noprint"><button class="burger" data-act="nav-toggle">☰</button><input class="search" id="gsearch" placeholder="ค้นหางาน..." value="${esc(S.q)}"><div class="grow"></div>
-        <button class="bell" data-act="bell">🔔${unread ? `<em id="bellcount">${unread}</em>` : '<em id="bellcount" hidden></em>'}</button></div>
-        <div class="notif" id="notif" ${S.notifOpen ? '' : 'hidden'}>${notifHtml()}</div>${banner}<div class="page">${content}</div></div></div>`;
+        ${Core.isLead(me) ? `<button class="bell" id="draftbtn" data-act="draft-menu" style="margin-right:8px">${draftBtnLabel()}</button>` : ''}<button class="bell" data-act="bell">🔔${unread ? `<em id="bellcount">${unread}</em>` : '<em id="bellcount" hidden></em>'}</button></div>
+        <div class="notif" id="notif" ${S.notifOpen ? '' : 'hidden'}>${notifHtml()}</div><div class="notif" id="draftmenu" style="right:84px" ${S.draftMenuOpen ? '' : 'hidden'}>${draftMenuHtml()}</div>${banner}<div class="page">${content}</div></div></div>`;
   };
 
   UI.render = () => {
@@ -50,7 +57,6 @@
     try {
       S.detail = null;
       if (page !== 'form') S.draft = null;
-      if (page === 'form' && !arg && Core.isLead(S.me)) S.drafts = await api.listDrafts();
       if (page === 'task') S.detail = { id: arg, ...(await api.detail(arg)) };
       if (page === 'users' && Core.isAdmin(S.me)) S.adminUsers = await api.listUsers();
     } catch (e) { UI.toast(e.message, true); }
@@ -68,6 +74,7 @@
     if (S.me.status !== 'approved') return UI.renderPending(S.me.status);
     try { await reloadCtx(); } catch (e) { return UI.renderLogin('โหลดข้อมูลไม่สำเร็จ: ' + e.message); }
     if (!location.hash || location.hash === '#') location.hash = '#/dashboard';
+    if (Core.isLead(S.me)) api.listDrafts().then((d) => { S.drafts = d; UI.refreshDraftMenu(); }).catch(() => { /* ไม่ขัดการใช้งาน */ });
     await UI.route();
     clearInterval(poll);
     poll = setInterval(async () => {
@@ -94,6 +101,7 @@
   document.addEventListener('click', (e) => {
     if (e.target.id === 'modal') return UI.closeModal();
     if (e.target.closest('.nav a')) $('#side') && $('#side').classList.remove('open');
+    if (S.draftMenuOpen && !e.target.closest('#draftmenu') && !e.target.closest('#draftbtn')) { S.draftMenuOpen = false; const m = $('#draftmenu'); if (m) m.hidden = true; }
     if (S.notifOpen && !e.target.closest('#notif') && !e.target.closest('.bell')) { S.notifOpen = false; const p = $('#notif'); if (p) p.hidden = true; }
     const a = e.target.closest('[data-act]');
     if (a && A[a.dataset.act]) A[a.dataset.act](a, e);
@@ -113,7 +121,7 @@
     else if (el.dataset.chg === 'prog') UI.chg.prog(el);
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') UI.closeModal(); if (e.key === 'Enter' && e.target.closest('.login') && e.target.tagName === 'INPUT') { const b = e.target.closest('.box').querySelector('[data-act$="-submit"]'); if (b) b.click(); } });
-  window.addEventListener('hashchange', () => { S.notifOpen = false; UI.route(); });
+  window.addEventListener('hashchange', () => { S.notifOpen = false; S.draftMenuOpen = false; UI.route(); });
 
   /* boot */
   (async function boot() {

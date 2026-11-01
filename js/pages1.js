@@ -152,6 +152,7 @@
     const acts = D.activity.length ? `<ul class="tl">${D.activity.map((l) => `<li>${actTxt(l)}<br><small class="sub">${UI.fDT(l.created_at)}</small></li>`).join('')}</ul>` : '<div class="sub">ยังไม่มีประวัติ</div>';
     return `<div class="ph"><a href="#/tasks" class="btn sm">← กลับ</a><div class="grow"></div>
       ${Core.isLead(me) && (t.status === 'blocked' || late) ? '<button class="btn sm" data-act="escalate">Escalate ให้ Manager</button>' : ''}
+      <a class="btn sm" href="${esc(UI.calUrl(t))}" target="_blank" rel="noopener">📅 เพิ่มลง Google Calendar</a>
       ${canEdit ? `<a class="btn sm" href="#/edit/${t.id}">แก้ไข</a>` : ''}${Core.isAdmin(me) || t.created_by === me.id ? '<button class="btn sm" data-act="del-task">ลบงาน</button>' : ''}</div>
     <div class="grid detail">
       <div class="grid" style="align-content:start">
@@ -204,9 +205,7 @@
     const leads = S.ctx.users.filter((u) => Core.isLead(u));
     const start = t ? t.start_date : new Date().toISOString(), due = t ? t.due_date : (() => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(17, 0, 0, 0); return d.toISOString(); })();
     const o = (obj, v) => Object.entries(obj).map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('');
-    const drafts = t ? '' : (S.drafts || []);
-    const draftBox = drafts.length ? `<div class="card" style="max-width:820px;margin-bottom:12px"><b>แบบร่างของฉัน (${drafts.length})</b>${drafts.map((x) => `<div class="row" style="align-items:center;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line,#eee)"><span>${S.draft && S.draft.id === x.id ? '▶ ' : ''}${esc(x.title)} <span class="sub">· ${UI.fDT(x.updated_at)}</span></span><span><button class="btn" data-act="draft-open" data-id="${x.id}">เปิด</button> <button class="btn" data-act="draft-del" data-id="${x.id}">ลบ</button></span></div>`).join('')}</div>` : '';
-    return `<div class="ph"><h1>${t ? 'แก้ไขงาน ' + esc(t.task_no) : 'สร้าง / มอบหมายงานใหม่'}</h1></div>${draftBox}${!t && S.draft ? '<div class="sub" style="max-width:820px;margin-bottom:8px">กำลังแก้แบบร่าง — กดบันทึกแบบร่างเพื่อเขียนทับ หรือสร้างงานเพื่อมอบหมายจริง (ไฟล์แนบไม่ถูกเก็บในแบบร่าง)</div>' : ''}
+    return `<div class="ph"><h1>${t ? 'แก้ไขงาน ' + esc(t.task_no) : 'สร้าง / มอบหมายงานใหม่'}</h1></div>${!t && S.draft ? '<div class="sub" style="max-width:820px;margin-bottom:8px">กำลังแก้แบบร่าง “' + esc(S.draft.payload && S.draft.payload.title || '') + '” — กดบันทึกแบบร่างเพื่อเขียนทับ หรือสร้างงานเพื่อมอบหมายจริง (ไฟล์แนบไม่ถูกเก็บในแบบร่าง)</div>' : ''}
     <div class="card" style="max-width:820px">
       <div class="fld"><label>ชื่องาน *</label><input id="f-title" value="${esc(t ? t.title : dv('title', ''))}"></div>
       <div class="fld"><label>รายละเอียด</label><textarea id="f-desc">${esc(t ? t.description || '' : dv('desc', ''))}</textarea></div>
@@ -230,10 +229,15 @@
     const id = await api.saveDraft({ id: S.draft ? S.draft.id : null, title: payload.title, payload });
     S.draft = { id, payload }; S.drafts = await api.listDrafts(); UI.render();
   }, 'บันทึกแบบร่างแล้ว', true);
-  A['draft-open'] = (el) => { const x = (S.drafts || []).find((r) => r.id === el.dataset.id); if (!x) return; S.draft = { id: x.id, payload: x.payload || {} }; UI.render(); window.scrollTo(0, 0); };
+  A['draft-menu'] = () => { S.draftMenuOpen = !S.draftMenuOpen; UI.refreshDraftMenu(); };
+  A['draft-open'] = (el) => {
+    const x = (S.drafts || []).find((r) => r.id === el.dataset.id); if (!x) return;
+    S.draft = { id: x.id, payload: x.payload || {} }; S.draftMenuOpen = false;
+    if (S.page === 'form' && !S.arg) { UI.render(); window.scrollTo(0, 0); } else location.hash = '#/new';
+  };
   A['draft-del'] = (el) => {
     if (!confirm('ลบแบบร่างนี้?')) return;
-    UI.run(async () => { await api.deleteDraft(el.dataset.id); if (S.draft && S.draft.id === el.dataset.id) S.draft = null; S.drafts = await api.listDrafts(); UI.render(); }, 'ลบแบบร่างแล้ว', true);
+    UI.run(async () => { await api.deleteDraft(el.dataset.id); if (S.draft && S.draft.id === el.dataset.id) S.draft = null; S.drafts = await api.listDrafts(); UI.refreshDraftMenu(); }, 'ลบแบบร่างแล้ว', true);
   };
   A['save-task'] = (el) => {
     const id = el.dataset.id, title = val('f-title').trim();
@@ -251,12 +255,13 @@
       p.links = val('f-links').split('\n').map((s) => s.trim()).filter((s) => /^https?:\/\//i.test(s));
       const files = Array.from((document.getElementById('f-files') || {}).files || []);
       if (files.some((f) => f.size > 5 * 1024 * 1024)) return UI.toast('มีไฟล์ใหญ่เกิน 5 MB', true);
+      const draftId = S.draft ? S.draft.id : null;
       UI.run(async () => {
         const nid = await api.createTask(p);
         const failed = [];
         for (const f of files) { try { await api.addFile(nid, f); } catch (e) { failed.push(f.name); } }
         if (failed.length) UI.toast('สร้างงานแล้ว แต่แนบไฟล์ไม่สำเร็จ: ' + failed.join(', ') + ' (แนบใหม่ที่หน้างาน)', true);
-        if (S.draft) { try { await api.deleteDraft(S.draft.id); } catch (e) { /* ไม่ขัดการสร้างงาน */ } S.draft = null; S.drafts = []; }
+        if (S.draft) { try { await api.deleteDraft(S.draft.id); } catch (e) { /* ไม่ขัดการสร้างงาน */ } S.draft = null; S.drafts = (S.drafts || []).filter((x) => x.id !== draftId); }
         await UI.refresh(true); location.hash = '#/task/' + nid;
       }, files.length ? 'สร้างงานและแนบไฟล์แล้ว' : 'สร้างและมอบหมายงานแล้ว', true);
     }
