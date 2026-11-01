@@ -150,3 +150,5 @@ td.num,th.num{text-align:right}
   .chartbox{height:220px;break-inside:avoid}
   tr{break-inside:avoid}
 }
+
+.btn:disabled,button:disabled{opacity:.6;cursor:not-allowed}
