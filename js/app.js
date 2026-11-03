@@ -5,7 +5,7 @@
   const $ = UI.$;
 
   const NAV = [
-    { g: 'งานของฉัน', items: [['dashboard', '🏠', 'My Dashboard'], ['tasks', '✅', 'My Tasks']] },
+    { g: 'งานของฉัน', items: [['dashboard', '🏠', 'My Dashboard'], ['tasks', '✅', 'My Tasks'], ['todo', '🗒️', 'To-Do รายวัน']] },
     { g: 'ผู้จัดการ / หัวหน้างาน', test: Core.isLead, items: [['new', '➕', 'มอบหมายงาน'], ['team', '📊', 'Team Dashboard'], ['approvals', '🔎', 'Approval Center'], ['reports', '📈', 'Performance Reports']] },
     { g: 'ผู้ดูแลระบบ', test: Core.isAdmin, items: [['users', '👥', 'User Management']] },
     { g: 'ทั่วไป', items: [['settings', '⚙️', 'Settings']] },
@@ -53,9 +53,11 @@
     let page = m[1] || 'dashboard', arg = m[2];
     if (page === 'new' || page === 'edit') page = 'form';
     if (!P[page]) page = 'dashboard';
+    const prevPage = S.page;
     S.page = page; S.arg = arg;
     try {
       S.detail = null;
+      if (page === 'todo' && (prevPage !== 'todo' || !S.todos)) S.todos = await api.listTodos();
       if (page !== 'form') S.draft = null;
       if (page === 'task') S.detail = { id: arg, ...(await api.detail(arg)) };
       if (page === 'users' && Core.isAdmin(S.me)) S.adminUsers = await api.listUsers();
@@ -69,6 +71,7 @@
 
   let poll;
   UI.enter = async () => {
+    S.todos = null; S.drafts = []; S.draft = null; S.draftMenuOpen = false; // กันข้อมูลส่วนตัวของผู้ใช้ก่อนหน้าค้างอยู่
     try { S.me = await api.myProfile(); } catch (e) { return UI.renderLogin(e.message); }
     if (!S.me) { await api.signOut(); return UI.renderLogin('ไม่พบโปรไฟล์ผู้ใช้ กรุณาติดต่อ Admin'); }
     if (S.me.status !== 'approved') return UI.renderPending(S.me.status);

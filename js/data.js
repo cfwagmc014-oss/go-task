@@ -456,6 +456,11 @@
       async deleteTeam(id) { await call('deleteTeam', { id }); },
       async saveSetting(key, value) { await call('saveSetting', { key, value }); },
       lineBindCode: () => call('lineBindCode'),
+      listTodos: () => call('listTodos'),
+      async addTodo(t) { return call('addTodo', t); },
+      async toggleTodo(id, done) { await call('toggleTodo', { id, done }); },
+      async deleteTodo(id) { await call('deleteTodo', { id }); },
+      async moveTodos(ids, date) { await call('moveTodos', { ids, date }); },
       listDrafts: () => call('listDrafts'),
       saveDraft: (d) => call('saveDraft', d),
       async deleteDraft(id) { await call('deleteDraft', { id }); },
@@ -480,6 +485,24 @@
     };
   }
 
+  /* To-Do ส่วนตัว (โหมดทดลอง / Supabase): เก็บในเบราว์เซอร์ — แบบ Apps Script เก็บในชีต Todos */
+  function localTodos(api) {
+    const key = async () => 'gotask_todos_' + (((await api.myProfile()) || {}).id || 'x');
+    const rd = async () => { try { return JSON.parse(localStorage.getItem(await key())) || []; } catch (e) { return []; } };
+    const wr = async (a) => { try { localStorage.setItem(await key(), JSON.stringify(a)); } catch (e) { throw new Error('บันทึกในเบราว์เซอร์ไม่ได้'); } };
+    return {
+      listTodos: () => rd(),
+      async addTodo(t) {
+        const title = String(t.title || '').trim().slice(0, 300); if (!title) throw new Error('กรุณาพิมพ์รายการ');
+        const all = await rd(), x = { id: 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), date: t.date, title, done: false, done_at: null, created_at: new Date().toISOString() };
+        all.push(x); await wr(all); return x.id;
+      },
+      async toggleTodo(id, done) { const all = await rd(), x = all.find((r) => r.id === id); if (x) { x.done = !!done; x.done_at = done ? new Date().toISOString() : null; await wr(all); } },
+      async deleteTodo(id) { await wr((await rd()).filter((r) => r.id !== id)); },
+      async moveTodos(ids, date) { const all = await rd(); all.forEach((x) => { if (ids.includes(x.id) && !x.done) x.date = date; }); await wr(all); },
+    };
+  }
+
   const hasGas = !!CFG.GAS_URL;
   const hasSb = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY);
   const hasKeys = hasGas || hasSb;
@@ -487,5 +510,6 @@
   const libMissing = !hasGas && hasSb && !window.supabase;
   const api = wantDemo || !hasKeys || libMissing ? makeDemo() : hasGas ? makeGas() : makeSupabase();
   if (!api.listDrafts) Object.assign(api, localDrafts(api));
+  if (!api.listTodos) Object.assign(api, localTodos(api));
   window.GT = { Core, api, configured: hasKeys, hasKeys, libMissing, canDemo: !hasKeys || CFG.ALLOW_DEMO !== false, googleClientId: CFG.GOOGLE_CLIENT_ID || '' };
 })();

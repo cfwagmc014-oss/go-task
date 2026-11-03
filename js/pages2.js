@@ -216,4 +216,63 @@
   };
   A['change-pw'] = () => { const p = val('pw-new'); if (p.length < 8) return UI.toast('รหัสผ่านอย่างน้อย 8 ตัวอักษร', true); UI.run(() => api.updatePassword(p), 'เปลี่ยนรหัสผ่านแล้ว', true); };
   A['reset-demo'] = () => { if (confirm('รีเซ็ตข้อมูลตัวอย่างทั้งหมด?')) UI.run(() => api.resetDemo(), 'รีเซ็ตแล้ว'); };
+
+  /* ---------- TO-DO รายวัน (ส่วนตัว) ---------- */
+  const ymd = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const todayStr = () => ymd(new Date());
+  const shiftDay = (ds, n) => { const d = new Date(ds + 'T12:00:00'); d.setDate(d.getDate() + n); return ymd(d); };
+  const dLabel = (ds) => new Date(ds + 'T12:00:00').toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const sDate = () => (/^\d{4}-\d{2}-\d{2}$/.test(S.arg || '') ? S.arg : todayStr());
+  P.todo = () => {
+    const date = sDate(), all = S.todos || [], isToday = date === todayStr();
+    const items = all.filter((x) => x.date === date), done = items.filter((x) => x.done).length;
+    const carry = date >= todayStr() ? all.filter((x) => x.date < date && !x.done) : [];
+    const row = (x, showDate) => `<div class="chk todo-row ${x.done ? 'todo-done' : ''}"><input type="checkbox" data-act="todo-toggle" data-id="${x.id}" ${x.done ? 'checked' : ''}>
+      <span class="grow" style="${x.done ? 'text-decoration:line-through;color:var(--mute)' : ''}">${esc(x.title)}${showDate ? ` <span class="sub">· จากวันที่ ${UI.fD ? UI.fD(x.date) : x.date}</span>` : ''}</span>
+      ${showDate ? `<button class="btn sm" data-act="todo-move" data-id="${x.id}">ย้ายมาวันนี้</button>` : ''}<button class="btn sm" data-act="todo-del" data-id="${x.id}" title="ลบ">✕</button></div>`;
+    return `<div class="ph"><h1>To-Do รายวัน</h1></div>
+    <div class="card" style="max-width:760px">
+      <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div><a class="btn sm" href="#/todo/${shiftDay(date, -1)}">◀</a> <a class="btn sm" href="#/todo">วันนี้</a> <a class="btn sm" href="#/todo/${shiftDay(date, 1)}">▶</a></div>
+        <div><b>${dLabel(date)}</b>${isToday ? ' <span class="badge b-in_progress">วันนี้</span>' : ''}</div>
+        <input type="date" value="${date}" data-chg="tododate" style="width:auto">
+      </div>
+      <div class="sub" style="margin-bottom:8px">รายการส่วนตัวของคุณ — เห็นได้เฉพาะคุณ ไม่เกี่ยวกับงานที่ได้รับมอบหมาย · ทำแล้ว ${done}/${items.length}</div>
+      <div class="row" style="gap:8px"><input id="todo-new" class="grow" placeholder="พิมพ์สิ่งที่ต้องทำ แล้วกด Enter" maxlength="300" autocomplete="off"><button class="btn pri" data-act="todo-add">+ เพิ่ม</button></div>
+      <div style="margin-top:10px">${items.length ? items.map((x) => row(x, false)).join('') : '<div class="empty">ยังไม่มีรายการของวันนี้</div>'}</div>
+    </div>
+    ${carry.length ? `<div class="card" style="max-width:760px;margin-top:12px"><div class="row" style="align-items:center;justify-content:space-between"><b>ค้างจากวันก่อน (${carry.length})</b><button class="btn sm" data-act="todo-carry">ย้ายมาทั้งหมด</button></div>${carry.map((x) => row(x, true)).join('')}</div>` : ''}`;
+  };
+  const todoFocus = () => { const i = document.getElementById('todo-new'); if (i) i.focus(); };
+  const todoFind = (id) => (S.todos || []).find((x) => x.id === id);
+  const todoWait = async (x) => { if (x && x.p) { try { await x.p; } catch (e) { /* ล้มเหลวอยู่แล้ว */ } } };
+  A['todo-add'] = () => {
+    const inp = document.getElementById('todo-new'), title = inp ? inp.value.trim() : '';
+    if (!title) return todoFocus();
+    const x = { id: 'tmp' + Date.now() + Math.random(), date: sDate(), title, done: false, created_at: new Date().toISOString() };
+    S.todos.push(x); UI.render(); todoFocus();
+    x.p = api.addTodo({ date: x.date, title }).then((id) => { x.id = id; x.p = null; UI.render(); todoFocus(); }, (e) => { S.todos = S.todos.filter((r) => r !== x); UI.render(); UI.toast(e.message || String(e), true); });
+  };
+  A['todo-toggle'] = async (el) => {
+    const x = todoFind(el.dataset.id); if (!x) return; const done = el.checked, old = x.done;
+    x.done = done; UI.render();
+    await todoWait(x);
+    try { await api.toggleTodo(x.id, done); } catch (e) { x.done = old; UI.render(); UI.toast(e.message || String(e), true); }
+  };
+  A['todo-del'] = async (el) => {
+    const x = todoFind(el.dataset.id); if (!x) return; const keep = S.todos.slice();
+    S.todos = S.todos.filter((r) => r !== x); UI.render();
+    await todoWait(x);
+    try { await api.deleteTodo(x.id); } catch (e) { S.todos = keep; UI.render(); UI.toast(e.message || String(e), true); }
+  };
+  const todoMove = async (xs) => {
+    const date = sDate(), olds = xs.map((x) => x.date); xs.forEach((x) => { x.date = date; }); UI.render();
+    for (const x of xs) await todoWait(x);
+    try { await api.moveTodos(xs.map((x) => x.id), date); } catch (e) { xs.forEach((x, i) => { x.date = olds[i]; }); UI.render(); UI.toast(e.message || String(e), true); }
+  };
+  A['todo-move'] = (el) => { const x = todoFind(el.dataset.id); if (x) todoMove([x]); };
+  A['todo-carry'] = () => { const d = sDate(); todoMove((S.todos || []).filter((x) => x.date < d && !x.done)); };
+  UI.chg = UI.chg || {};
+  UI.chg.tododate = (el) => { if (/^\d{4}-\d{2}-\d{2}$/.test(el.value)) location.hash = '#/todo/' + el.value; };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target && e.target.id === 'todo-new') { e.preventDefault(); A['todo-add'](); } });
 })();
