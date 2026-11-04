@@ -25,7 +25,7 @@
     const critTodo = rows.filter((r) => ['critical', 'high'].includes(r.t.priority) && r.a.status === 'todo');
     const li = (r) => `<div class="cmt" style="cursor:pointer" data-go="#/task/${r.t.id}"><b>${esc(r.t.title)}</b><br><small>${esc(UI.uname(r.a.user_id))} · ${UI.prio(r.t.priority)} · ${UI.fDT(r.t.due_date)}</small></div>`;
     const busy = byEmp.filter((e) => e.m.open >= BUSY);
-    return `<div class="ph"><h1>Manager Control Tower</h1><div class="sub">ขอบเขต: งานที่คุณมีสิทธิ์เห็น (${tasks.length} งาน · ${rows.length} การมอบหมาย)</div><div class="grow"></div><a class="btn pri" href="#/new">+ มอบหมายงานใหม่</a></div>
+    return `<div class="ph"><h1>Control Tower</h1><div class="sub">ขอบเขต: งานที่คุณมีสิทธิ์เห็น (${tasks.length} งาน · ${rows.length} การมอบหมาย)</div><div class="grow"></div><a class="btn pri" href="#/new">+ มอบหมายงานใหม่</a></div>
     <div class="grid kpis">${UI.kpi('Total Tasks', tasks.length)}${UI.kpi('Completion Rate', UI.pct(done, tasks.length) + '%', 'ok')}${UI.kpi('On-Time Completion', m.ontimeRate + '%', 'ok')}
       ${UI.kpi('Overdue Tasks', overdueT, 'red')}${UI.kpi('Critical Tasks (เปิดอยู่)', crit, 'red')}${UI.kpi('Pending Approval', m.pending_approval, 'warn')}</div>
     <div class="grid g2" style="margin-bottom:14px">
@@ -64,7 +64,7 @@
       <h3 style="margin:0 0 8px">รอคุณตรวจสอบ (${pend.length})</h3>${tbl(pend, true)}
       ${wait.length ? `<h3 style="margin:18px 0 8px">รออนุมัติ — ผู้ตรวจสอบคนอื่น (${wait.length})</h3>${tbl(wait, false)}` : ''}
       <h3 style="margin:18px 0 8px">ส่งกลับแก้ไข (${rework.length})</h3>${tbl(rework, false)}
-      <h3 style="margin:18px 0 8px">ติดปัญหา (${blocked.length}) — เปิดงานเพื่อ Escalate ให้ Manager</h3>${tbl(blocked, false)}`;
+      <h3 style="margin:18px 0 8px">ติดปัญหา (${blocked.length}) — เปิดงานเพื่อ Escalate ให้ Section Sales Mgr.</h3>${tbl(blocked, false)}`;
   };
   A['q-review'] = (el) => {
     const { t, u, d } = el.dataset;
@@ -105,7 +105,9 @@
     <div class="card"><h3>Department Performance</h3><div class="tbl-wrap"><table>${head}<tbody>${R.dep.map((e) => mrow(e.name, e.m)).join('') || '<tr><td colspan="7" class="empty">ไม่มีข้อมูล</td></tr>'}</tbody></table></div></div>`;
   };
   A['export-pdf'] = () => { UI.toast('เลือก “Save as PDF / บันทึกเป็น PDF” ในหน้าต่างพิมพ์'); setTimeout(() => window.print(), 400); };
-  A['export-xlsx'] = () => {
+  UI.loadScript = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load')); document.head.appendChild(s); });
+  A['export-xlsx'] = async () => {
+    if (!window.XLSX) { try { UI.toast('กำลังเตรียมตัวส่งออก Excel...'); await UI.loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'); } catch (e) { /* ตรวจด้านล่าง */ } }
     if (!window.XLSX) return UI.toast('ไม่สามารถโหลดไลบรารี Excel ได้ (ตรวจสอบอินเทอร์เน็ต)', true);
     const R = UI.repData(), r = S.rep;
     const mrow = (n, m) => ({ ชื่อ: n, งานทั้งหมด: m.assigned, เสร็จ: m.completed, 'Completion %': m.rate, 'On-Time %': m.completed ? m.ontimeRate : null, 'Overdue (งาน)': m.overdue, 'Overdue %': m.overduePct, 'เวลาเฉลี่ยปิดงาน (วัน)': m.completed ? m.avgDays : null });
@@ -119,17 +121,17 @@
     XLSX.writeFile(wb, `GO-TASK-report-${dstr(new Date())}.xlsx`);
   };
 
-  /* ---------- USER MANAGEMENT (Admin) ---------- */
+  /* ---------- USER MANAGEMENT (ASGM - Sales) ---------- */
   const STU = { pending: 'รออนุมัติ', approved: 'ใช้งาน', suspended: 'ระงับ' };
   P.users = () => {
     if (!Core.isAdmin(S.me)) return noAccess;
     const tab = S.usersTab, tabs = [['users', 'ผู้ใช้งาน'], ['depts', 'แผนก'], ['teams', 'ทีม']];
     const head = `<div class="ph"><h1>จัดการผู้ใช้งาน</h1><div class="grow"></div><div class="seg">${tabs.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="utab" data-t="${k}">${l}</button>`).join('')}</div></div>`;
     if (tab === 'depts') return head + `<div class="card" style="max-width:560px"><div class="row"><input class="inp" id="d-new" placeholder="ชื่อแผนกใหม่" style="flex:1"><button class="btn pri" data-act="dept-add">เพิ่ม</button></div><div style="margin-top:10px">${S.ctx.departments.map((d) => `<div class="cmt"><b>${esc(d.name)}</b> <button class="btn sm" data-act="dept-rename" data-id="${d.id}">เปลี่ยนชื่อ</button></div>`).join('')}</div></div>`;
-    if (tab === 'teams') return head + `<div class="row" style="margin-bottom:12px"><button class="btn pri" data-act="team-edit" data-id="">+ สร้างทีม</button></div>` + (S.ctx.teams.length ? `<div class="tbl-wrap"><table><thead><tr><th>ทีม</th><th>แผนก</th><th>Manager</th><th>สมาชิก</th><th></th></tr></thead><tbody>${S.ctx.teams.map((t) => { const ms = S.ctx.teamMembers.filter((m) => m.team_id === t.id); return `<tr><td><b>${esc(t.name)}</b></td><td>${esc(UI.dname(t.department_id))}</td><td>${esc(UI.uname(t.manager_id))}</td><td>${ms.map((m) => esc(UI.uname(m.user_id)) + (m.member_role === 'supervisor' ? ' (SV)' : '')).join(', ') || '—'}</td><td><button class="btn sm" data-act="team-edit" data-id="${t.id}">แก้ไข</button></td></tr>`; }).join('')}</tbody></table></div>` : '<div class="card empty">ยังไม่มีทีม — สร้างทีมเพื่อกำหนดว่า Manager/Supervisor ดูแลใคร</div>');
+    if (tab === 'teams') return head + `<div class="row" style="margin-bottom:12px"><button class="btn pri" data-act="team-edit" data-id="">+ สร้างทีม</button></div>` + (S.ctx.teams.length ? `<div class="tbl-wrap"><table><thead><tr><th>ทีม</th><th>แผนก</th><th>Section Sales Mgr.</th><th>สมาชิก</th><th></th></tr></thead><tbody>${S.ctx.teams.map((t) => { const ms = S.ctx.teamMembers.filter((m) => m.team_id === t.id); return `<tr><td><b>${esc(t.name)}</b></td><td>${esc(UI.dname(t.department_id))}</td><td>${esc(UI.uname(t.manager_id))}</td><td>${ms.map((m) => esc(UI.uname(m.user_id)) + (m.member_role === 'supervisor' ? ' (SV)' : '')).join(', ') || '—'}</td><td><button class="btn sm" data-act="team-edit" data-id="${t.id}">แก้ไข</button></td></tr>`; }).join('')}</tbody></table></div>` : '<div class="card empty">ยังไม่มีทีม — สร้างทีมเพื่อกำหนดว่า Section Sales Mgr./Supervisor ดูแลใคร</div>');
     const us = (S.adminUsers || []).slice().sort((a, b) => (a.status === 'pending' ? -1 : 0) - (b.status === 'pending' ? -1 : 0) || a.full_name.localeCompare(b.full_name, 'th'));
     return head + `<div class="row" style="margin-bottom:12px"><button class="btn pri" data-act="user-edit" data-id="">+ เพิ่มผู้ใช้ (ลงทะเบียนอีเมลล่วงหน้า)</button><span class="sub">พนักงานสมัคร/Login ด้วยอีเมลที่ลงทะเบียน ระบบจะผูกบัญชีอัตโนมัติ · ผู้ที่สมัครเองจะอยู่สถานะ “รออนุมัติ”</span></div>
-    <div class="tbl-wrap"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>อีเมล</th><th>ตำแหน่ง</th><th>แผนก</th><th>สิทธิ์</th><th>สถานะ</th><th></th></tr></thead><tbody>${us.map((u) => `<tr class="${u.status === 'pending' ? 'hl' : ''}"><td>${esc(u.employee_id || '-')}</td><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email)}</td><td>${esc(u.position || '')}</td><td>${esc(UI.dname(u.department_id))}</td><td>${UI.ROLE[u.role]}</td><td><span class="badge ${u.status === 'approved' ? 'b-completed' : u.status === 'pending' ? 'b-pending_approval' : 'b-blocked'}">${STU[u.status]}</span></td><td style="white-space:nowrap">${u.status === 'pending' ? `<button class="btn sm ok" data-act="user-edit" data-id="${u.id}" data-approve="1">ตรวจสอบ/อนุมัติ</button>` : `<button class="btn sm" data-act="user-edit" data-id="${u.id}">แก้ไข</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+    <div class="tbl-wrap"><table><thead><tr><th>รหัส</th><th>ชื่อ</th><th>อีเมล</th><th>ตำแหน่ง</th><th>แผนก</th><th>สิทธิ์</th><th>สถานะ</th><th></th></tr></thead><tbody>${us.map((u) => `<tr class="${u.status === 'pending' ? 'hl' : ''}"><td>${esc(u.employee_id || '-')}</td><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email)}</td><td>${esc(u.position || '')}</td><td>${esc(UI.dname(u.department_id))}</td><td>${UI.ROLE[u.role]}</td><td><span class="badge ${u.status === 'approved' ? 'b-completed' : u.status === 'pending' ? 'b-pending_approval' : 'b-blocked'}">${STU[u.status]}</span></td><td style="white-space:nowrap">${u.status === 'pending' ? `<button class="btn sm ok" data-act="user-edit" data-id="${u.id}" data-approve="1">ตรวจสอบ/อนุมัติ</button>` : `<button class="btn sm" data-act="user-edit" data-id="${u.id}">แก้ไข</button>`} ${u.id === S.me.id ? '' : `<button class="btn sm" data-act="user-del" data-id="${u.id}" title="ลบผู้ใช้">🗑</button>`}</td></tr>`).join('')}</tbody></table></div>`;
   };
   A.utab = (el) => { S.usersTab = el.dataset.t; UI.render(); };
   A['user-edit'] = (el) => {
@@ -146,8 +148,15 @@
   A['user-save'] = () => {
     const u = { id: val('u-id') || null, email: val('u-email').trim(), employee_id: val('u-emp').trim(), full_name: val('u-name').trim(), position: val('u-pos').trim(), department_id: val('u-dept'), role: val('u-role'), status: val('u-status') };
     if (!u.email || !u.full_name) return UI.toast('กรุณากรอกอีเมลและชื่อ', true);
-    if (u.id === S.me.id && (u.role !== 'admin' || u.status !== 'approved')) return UI.toast('ไม่สามารถลดสิทธิ์/ระงับบัญชี Admin ของตนเองได้', true);
+    if (u.id === S.me.id && (u.role !== 'admin' || u.status !== 'approved')) return UI.toast('ไม่สามารถลดสิทธิ์/ระงับบัญชี ASGM - Sales ของตนเองได้', true);
     UI.closeModal(); UI.run(() => api.saveUser(u), 'บันทึกผู้ใช้แล้ว');
+  };
+  A['user-del'] = (el) => {
+    const u = S.ctx.users.find((x) => x.id === el.dataset.id); if (!u) return;
+    UI.modal(`<h3>ลบผู้ใช้</h3><p>ต้องการลบ <b>${esc(u.full_name)}</b> (${esc(u.email)}) ออกจากระบบถาวรใช่ไหม?</p>
+      <p class="sub">ลบได้เฉพาะผู้ใช้ที่ยังไม่มีประวัติงาน (เช่น ข้อมูลผิดพลาด/เพิ่มเกิน) — ถ้ามีประวัติงานแล้ว ให้ใช้ "แก้ไข → สถานะ: ระงับ" แทน</p>
+      <div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">ยกเลิก</button><button class="btn pri" id="udel-ok" style="background:var(--red-d,#b91c1c)">ลบถาวร</button></div>`);
+    UI.$('#udel-ok').onclick = () => { UI.closeModal(); UI.run(() => api.deleteUser(u.id), 'ลบผู้ใช้แล้ว'); };
   };
   A['dept-add'] = () => { const n = val('d-new').trim(); if (n) UI.run(() => api.saveDept({ name: n }), 'เพิ่มแผนกแล้ว'); };
   A['dept-rename'] = (el) => { const d = S.ctx.departments.find((x) => x.id === el.dataset.id), n = prompt('ชื่อแผนกใหม่', d.name); if (n && n.trim()) UI.run(() => api.saveDept({ id: d.id, name: n.trim() }), 'บันทึกแล้ว'); };
@@ -157,7 +166,7 @@
     UI.modal(`<h3>${t.id ? 'แก้ไขทีม' : 'สร้างทีม'}</h3><input type="hidden" id="t-id" value="${t.id || ''}">
       <div class="fld"><label>ชื่อทีม *</label><input id="t-name" value="${esc(t.name || '')}"></div>
       <div class="row"><div class="fld"><label>แผนก</label><select id="t-dept"><option value="">—</option>${S.ctx.departments.map((d) => `<option value="${d.id}" ${t.department_id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div>
-      <div class="fld"><label>Manager / ASGM ผู้ดูแลทีม</label><select id="t-mgr"><option value="">—</option>${mgrs.map((u) => `<option value="${u.id}" ${t.manager_id === u.id ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}</select></div></div>
+      <div class="fld"><label>Section Sales Mgr. ผู้ดูแลทีม</label><select id="t-mgr"><option value="">—</option>${mgrs.map((u) => `<option value="${u.id}" ${t.manager_id === u.id ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}</select></div></div>
       <div class="fld"><label>สมาชิก (ติ๊ก SV = Supervisor ของทีม)</label><div style="max-height:260px;overflow:auto">${S.ctx.users.map((u) => { const m = ms.find((x) => x.user_id === u.id); return `<div class="chk"><input type="checkbox" class="tm-in" data-u="${u.id}" ${m ? 'checked' : ''}> <span style="flex:1">${esc(u.full_name)} <span class="sub">· ${UI.ROLE[u.role]}</span></span><label class="sub"><input type="checkbox" class="tm-sv" data-u="${u.id}" ${m && m.member_role === 'supervisor' ? 'checked' : ''}> SV</label></div>`; }).join('')}</div></div>
       <div class="row" style="justify-content:space-between">${t.id ? '<button class="btn" data-act="team-del">ลบทีม</button>' : '<span></span>'}<span class="row"><button class="btn" data-act="close-modal">ยกเลิก</button><button class="btn pri" data-act="team-save">บันทึก</button></span></div>`);
   };
@@ -172,29 +181,29 @@
   /* ---------- SETTINGS ---------- */
   P.settings = () => {
     const me = S.me, st = S.ctx.settings || {}, demo = api.mode === 'demo', gas = api.mode === 'gas', sb = api.mode === 'supabase';
-    const TYPES = [['assigned', 'ได้รับมอบหมายงานใหม่'], ['due_soon', 'ก่อนถึงกำหนดส่ง'], ['due_now', 'ครบกำหนดส่ง'], ['overdue', 'เกินกำหนดส่ง (แจ้งซ้ำวันละครั้ง)'], ['submitted', 'มีงานส่งรออนุมัติ'], ['rework', 'ถูกส่งกลับแก้ไข'], ['approved', 'อนุมัติปิดงาน'], ['escalation_supervisor', 'Escalation → Supervisor'], ['escalation_manager', 'Escalation → Manager'], ['escalation_manual', 'Escalate ด้วยมือ → Manager']];
+    const TYPES = [['assigned', 'ได้รับมอบหมายงานใหม่'], ['due_soon', 'ก่อนถึงกำหนดส่ง'], ['due_now', 'ครบกำหนดส่ง'], ['overdue', 'เกินกำหนดส่ง (แจ้งซ้ำวันละครั้ง)'], ['submitted', 'มีงานส่งรออนุมัติ'], ['rework', 'ถูกส่งกลับแก้ไข'], ['approved', 'อนุมัติปิดงาน'], ['escalation_supervisor', 'Escalation → Supervisor'], ['escalation_manager', 'Escalation → Section Sales Mgr.'], ['escalation_manual', 'Escalate ด้วยมือ → Section Sales Mgr.']];
     const DEF = { assigned: [1, 0], due_soon: [1, 0], due_now: [1, 0], overdue: [1, 1], submitted: [1, 0], rework: [1, 0], approved: [1, 0], escalation_supervisor: [1, 1], escalation_manager: [1, 1], escalation_manual: [1, 1] };
     const chv = (t, k) => { const o = (st.channels || {})[t]; return o && o[k] !== undefined ? !!o[k] : !!DEF[t][k === 'line' ? 0 : 1]; };
     const matrix = gas ? `<h3 style="margin-top:16px">ช่องทางแจ้งเตือนแต่ละชนิด <span class="sub">(แจ้งเตือนในแอปส่งเสมอ)</span></h3><div class="tbl-wrap"><table><thead><tr><th>ชนิด</th><th>LINE</th><th>อีเมล</th></tr></thead><tbody>${TYPES.map(([t, l]) => `<tr><td>${l}</td><td><input type="checkbox" class="ch-in" data-t="${t}" data-k="line" ${chv(t, 'line') ? 'checked' : ''}></td><td><input type="checkbox" class="ch-in" data-t="${t}" data-k="email" ${chv(t, 'email') ? 'checked' : ''}></td></tr>`).join('')}</tbody></table></div>
       <div class="row" style="margin-top:10px"><label class="chk"><input type="checkbox" id="s-line" ${st.line_enabled !== false ? 'checked' : ''}> เปิดส่งทาง LINE</label></div>
-      <div class="row"><div class="fld"><label>LINE Group ID — กลุ่ม Supervisor (Escalation)</label><input id="s-gsup" value="${esc(st.line_group_supervisor || '')}" placeholder="Cxxxxxxxx..."></div><div class="fld"><label>LINE Group ID — กลุ่ม Manager (Escalation)</label><input id="s-gmgr" value="${esc(st.line_group_manager || '')}" placeholder="Cxxxxxxxx..."></div></div>
+      <div class="row"><div class="fld"><label>LINE Group ID — กลุ่ม Supervisor (Escalation)</label><input id="s-gsup" value="${esc(st.line_group_supervisor || '')}" placeholder="Cxxxxxxxx..."></div><div class="fld"><label>LINE Group ID — กลุ่ม Section Sales Mgr. (Escalation)</label><input id="s-gmgr" value="${esc(st.line_group_manager || '')}" placeholder="Cxxxxxxxx..."></div></div>
       <p class="sub">หา Group ID: เชิญบอท LINE OA เข้ากลุ่ม แล้วพิมพ์ “groupid” ในกลุ่ม บอทจะตอบกลับ ID</p>` : '';
-    const rules = Core.isAdmin(me) ? `<div class="card" style="grid-column:1/-1"><h3>กฎการแจ้งเตือนและ Escalation (Admin)</h3>
+    const rules = Core.isAdmin(me) ? `<div class="card" style="grid-column:1/-1"><h3>กฎการแจ้งเตือนและ Escalation (ASGM - Sales)</h3>
       <div class="row"><div class="fld"><label>เตือนก่อนถึงกำหนด (ชั่วโมง)</label><input type="number" min="1" id="s-rem" value="${st.reminder_hours_before ?? 24}"></div>
       <div class="fld"><label>เกินกำหนด → แจ้ง Supervisor (ชั่วโมง)</label><input type="number" min="1" id="s-sup" value="${st.escalate_supervisor_hours ?? 24}"></div>
-      <div class="fld"><label>เกินกำหนด → แจ้ง Manager (ชั่วโมง)</label><input type="number" min="1" id="s-mgr" value="${st.escalate_manager_hours ?? 48}"></div></div>
+      <div class="fld"><label>เกินกำหนด → แจ้ง Section Sales Mgr. (ชั่วโมง)</label><input type="number" min="1" id="s-mgr" value="${st.escalate_manager_hours ?? 48}"></div></div>
       <label class="chk" style="max-width:360px"><input type="checkbox" id="s-mail" ${st.email_enabled !== false ? 'checked' : ''}> เปิดการส่งอีเมลแจ้งเตือน</label>
       ${gas ? `<label class="chk" style="max-width:520px"><input type="checkbox" id="s-cal" ${st.calendar_sync !== false ? 'checked' : ''}> ปัก Deadline ลง Google Calendar ของผู้รับผิดชอบอัตโนมัติ (ส่งคำเชิญจากปฏิทินของบัญชีเจ้าของสคริปต์)</label>` : ''}
       ${matrix}
       <p class="sub">${demo ? 'โหมดทดลองจำลองเฉพาะการแจ้งเตือนในแอป' : gas ? 'ตรวจกำหนดส่ง/Escalation ทุก 15 นาที โดย Time-driven trigger ของ Apps Script' : 'ตรวจกำหนดส่ง/Escalation โดย pg_cron บนฐานข้อมูล'}</p>
       <button class="btn pri" data-act="save-rules">บันทึก</button></div>` : '';
-    const lineCard = gas ? `<div class="card"><h3>ผูกบัญชี LINE ของฉัน</h3>${me.line_linked ? '<p><span class="badge b-completed">ผูกแล้ว</span> คุณจะได้รับแจ้งเตือนทาง LINE ตามที่ Admin กำหนด</p>' : '<p><span class="badge b-todo">ยังไม่ผูก</span></p>'}
+    const lineCard = gas ? `<div class="card"><h3>ผูกบัญชี LINE ของฉัน</h3>${me.line_linked ? '<p><span class="badge b-completed">ผูกแล้ว</span> คุณจะได้รับแจ้งเตือนทาง LINE ตามที่ ASGM - Sales กำหนด</p>' : '<p><span class="badge b-todo">ยังไม่ผูก</span></p>'}
       <p class="sub">1) กดสร้างรหัส 2) เพิ่มเพื่อน LINE OA ของสาขา 3) พิมพ์รหัส 6 หลักในแชต (รหัสอยู่ได้ 10 นาที)</p><button class="btn" data-act="line-code">สร้างรหัสผูก LINE</button><div id="line-code" style="font-size:28px;font-weight:700;margin-top:8px;letter-spacing:4px"></div></div>` : '';
     const statusCard = demo ? '<p><span class="badge b-pending_approval">โหมดทดลอง</span> ข้อมูลเป็นข้อมูลตัวอย่างในเบราว์เซอร์นี้เท่านั้น ไม่มี Authentication / ฐานข้อมูล / อีเมล / LINE จริง</p><button class="btn" data-act="reset-demo">รีเซ็ตข้อมูลตัวอย่าง</button>'
       : gas ? '<p><span class="badge b-completed">เชื่อมต่อ Apps Script</span> ล็อกอินด้วย Google และตรวจสิทธิ์ที่เซิร์ฟเวอร์ทุกคำสั่ง</p><p class="sub">การส่ง LINE/อีเมลจะสำเร็จได้ก็ต่อเมื่อตั้งค่า LINE_CHANNEL_TOKEN และผูกบัญชี LINE ของผู้รับแล้ว (หน้านี้ตรวจสอบแทนไม่ได้) · แจ้งเตือนในแอปทำงานเสมอ</p>'
       : '<p><span class="badge b-completed">เชื่อมต่อ Supabase</span> สิทธิ์ถูกบังคับที่ฐานข้อมูลด้วย RLS</p><p class="sub">อีเมลแจ้งเตือนจะส่งได้ก็ต่อเมื่อติดตั้ง Edge Function send-email + Database Webhook ตามคู่มือแล้ว</p>';
     return `<div class="ph"><h1>ตั้งค่า</h1></div><div class="grid g2" style="align-items:start">
-      <div class="card"><h3>โปรไฟล์</h3><dl class="kv"><dt>ชื่อ</dt><dd>${esc(me.full_name)}</dd><dt>อีเมล</dt><dd>${esc(me.email || '—')}</dd><dt>รหัสพนักงาน</dt><dd>${esc(me.employee_id || '—')}</dd><dt>ตำแหน่ง</dt><dd>${esc(me.position || '—')}</dd><dt>แผนก</dt><dd>${esc(UI.dname(me.department_id))}</dd><dt>สิทธิ์</dt><dd>${UI.ROLE[me.role]}</dd></dl><p class="sub">ข้อมูลโปรไฟล์แก้ไขโดย Admin</p></div>
+      <div class="card"><h3>โปรไฟล์</h3><dl class="kv"><dt>ชื่อ</dt><dd>${esc(me.full_name)}</dd><dt>อีเมล</dt><dd>${esc(me.email || '—')}</dd><dt>รหัสพนักงาน</dt><dd>${esc(me.employee_id || '—')}</dd><dt>ตำแหน่ง</dt><dd>${esc(me.position || '—')}</dd><dt>แผนก</dt><dd>${esc(UI.dname(me.department_id))}</dd><dt>สิทธิ์</dt><dd>${UI.ROLE[me.role]}</dd></dl><p class="sub">ข้อมูลโปรไฟล์แก้ไขโดย ASGM - Sales</p></div>
       <div class="card"><h3>สถานะระบบ</h3>${statusCard}</div>
       ${lineCard}
       ${sb ? `<div class="card"><h3>เปลี่ยนรหัสผ่าน</h3><div class="fld"><label>รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)</label><input type="password" id="pw-new" autocomplete="new-password"></div><button class="btn" data-act="change-pw">เปลี่ยนรหัสผ่าน</button></div>` : ''}

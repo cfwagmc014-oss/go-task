@@ -15,7 +15,7 @@
     if (gas) {
       const inLine = /Line\//i.test(navigator.userAgent);
       body = `${inLine ? '<div class="banner" style="margin:0 0 10px;border-radius:8px;border:1px solid #f5d28a"><b>เปิดจากแอป LINE?</b> Google จะบล็อกการล็อกอินในเบราว์เซอร์ของ LINE — กด ⋯ แล้วเลือก “เปิดในเบราว์เซอร์” (Chrome / Safari) ก่อน</div>' : ''}
-        <p class="sub" style="margin:0 0 10px">เข้าสู่ระบบด้วยบัญชี Google ของคุณ (อีเมลที่ Admin ลงทะเบียนไว้) บัญชีใหม่ที่ยังไม่ลงทะเบียนจะอยู่สถานะ “รออนุมัติ”</p>
+        <p class="sub" style="margin:0 0 10px">เข้าสู่ระบบด้วยบัญชี Google ของคุณ (อีเมลที่ ASGM - Sales ลงทะเบียนไว้) บัญชีใหม่ที่ยังไม่ลงทะเบียนจะอยู่สถานะ “รออนุมัติ”</p>
         ${window.GT.googleClientId ? '<div id="g-btn" style="min-height:44px"></div>' : '<div class="late">ยังไม่ได้ตั้งค่า GOOGLE_CLIENT_ID ใน config.js</div>'}`;
     } else if (demo) {
       const us = api.demoUsers();
@@ -29,7 +29,7 @@
       body = `${up ? '<div class="fld"><label>ชื่อ-นามสกุล</label><input id="l-name" autocomplete="name"></div>' : ''}
         <div class="fld"><label>อีเมล</label><input id="l-email" type="email" autocomplete="email"></div>
         <div class="fld"><label>รหัสผ่าน</label><input id="l-pw" type="password" autocomplete="${up ? 'new-password' : 'current-password'}"></div>
-        <button class="btn pri" style="width:100%" data-act="${up ? 'signup-submit' : 'login-submit'}">${up ? 'สมัครใช้งาน (รอ Admin อนุมัติ)' : 'เข้าสู่ระบบ'}</button>
+        <button class="btn pri" style="width:100%" data-act="${up ? 'signup-submit' : 'login-submit'}">${up ? 'สมัครใช้งาน (รอ ASGM - Sales อนุมัติ)' : 'เข้าสู่ระบบ'}</button>
         <button class="btn" style="width:100%;margin-top:8px" data-act="google">เข้าสู่ระบบด้วย Google</button>
         <p class="sub" style="margin-top:10px">${up ? '<a href="#" data-act="tab" data-t="in">มีบัญชีแล้ว? เข้าสู่ระบบ</a>' : '<a href="#" data-act="tab" data-t="up">สมัครใช้งาน</a> · <a href="#" data-act="tab" data-t="reset">ลืมรหัสผ่าน</a>'}</p>`;
     }
@@ -51,13 +51,13 @@
     go();
   };
   UI.renderPending = (st) => {
-    document.getElementById('app').innerHTML = `<div class="login"><div class="card box"><div class="logo">GO TASK</div><h3 style="margin-top:12px">${st === 'suspended' ? 'บัญชีนี้ถูกระงับการใช้งาน' : 'บัญชีของคุณรอ Admin อนุมัติ'}</h3><p class="sub">${st === 'suspended' ? 'กรุณาติดต่อผู้ดูแลระบบ' : 'หลัง Admin ผูกอีเมลกับรหัสพนักงาน แผนก และสิทธิ์แล้ว จึงจะเข้าใช้งานได้ — ลอง Login ใหม่อีกครั้งภายหลัง'}</p><button class="btn" data-act="logout">ออกจากระบบ</button></div></div>`;
+    document.getElementById('app').innerHTML = `<div class="login"><div class="card box"><div class="logo">GO TASK</div><h3 style="margin-top:12px">${st === 'suspended' ? 'บัญชีนี้ถูกระงับการใช้งาน' : 'บัญชีของคุณรอ ASGM - Sales อนุมัติ'}</h3><p class="sub">${st === 'suspended' ? 'กรุณาติดต่อผู้ดูแลระบบ' : 'หลัง ASGM - Sales ผูกอีเมลกับรหัสพนักงาน แผนก และสิทธิ์แล้ว จึงจะเข้าใช้งานได้ — ลอง Login ใหม่อีกครั้งภายหลัง'}</p><button class="btn" data-act="logout">ออกจากระบบ</button></div></div>`;
   };
   A.tab = (el, ev) => { ev.preventDefault(); UI.loginTab = el.dataset.t; UI.renderLogin(); };
   A['login-submit'] = async () => { try { await api.signIn(val('l-email').trim(), val('l-pw')); await UI.enter(); } catch (e) { UI.renderLogin(e.message); } };
   A['signup-submit'] = async () => {
     const pw = val('l-pw'); if (pw.length < 8) return UI.toast('รหัสผ่านอย่างน้อย 8 ตัวอักษร', true);
-    try { await api.signUp(val('l-email').trim(), pw, val('l-name').trim()); UI.loginTab = 'in'; UI.renderLogin('สมัครแล้ว — หากระบบกำหนดให้ยืนยันอีเมล กรุณายืนยันก่อน แล้วรอ Admin อนุมัติ'); } catch (e) { UI.toast(e.message, true); }
+    try { await api.signUp(val('l-email').trim(), pw, val('l-name').trim()); UI.loginTab = 'in'; UI.renderLogin('สมัครแล้ว — หากระบบกำหนดให้ยืนยันอีเมล กรุณายืนยันก่อน แล้วรอ ASGM - Sales อนุมัติ'); } catch (e) { UI.toast(e.message, true); }
   };
   A['reset-submit'] = async () => { try { await api.resetPassword(val('l-email').trim()); UI.toast('ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว (ถ้าอีเมลนี้มีในระบบ)'); } catch (e) { UI.toast(e.message, true); } };
   A.google = async () => { try { await api.signInGoogle(); } catch (e) { UI.toast(e.message, true); } };
@@ -121,7 +121,7 @@
       case 'status_change': return `${who} เปลี่ยนสถานะ ${UI.STL[l.from_status]} → <b>${UI.STL[l.to_status]}</b>${d.progress != null ? ` (${d.progress}%)` : ''}${d.note ? `<br><small>“${esc(d.note)}”</small>` : ''}`;
       case 'approved': return `${who} <b>อนุมัติปิดงาน</b> ของ ${esc(UI.uname(d.assignee))}${d.note ? `<br><small>“${esc(d.note)}”</small>` : ''}`;
       case 'rejected': return `${who} <b>ส่งกลับแก้ไข</b> งานของ ${esc(UI.uname(d.assignee))}${d.note ? `<br><small>“${esc(d.note)}”</small>` : ''}`;
-      case 'escalated': return `${who} Escalate งานให้ Manager${d.note ? `<br><small>“${esc(d.note)}”</small>` : ''}`;
+      case 'escalated': return `${who} Escalate งานให้ Section Sales Mgr.${d.note ? `<br><small>“${esc(d.note)}”</small>` : ''}`;
       default: return `${who} ${esc(l.action)}`;
     }
   };
@@ -151,7 +151,7 @@
     const cms = D.comments.length ? D.comments.map((c) => `<div class="cmt"><b>${esc(UI.uname(c.user_id))}</b> <small>${UI.fDT(c.created_at)}</small><div>${esc(c.body).replace(/\n/g, '<br>')}</div></div>`).join('') : '<div class="sub">ยังไม่มีความคิดเห็น</div>';
     const acts = D.activity.length ? `<ul class="tl">${D.activity.map((l) => `<li>${actTxt(l)}<br><small class="sub">${UI.fDT(l.created_at)}</small></li>`).join('')}</ul>` : '<div class="sub">ยังไม่มีประวัติ</div>';
     return `<div class="ph"><a href="#/tasks" class="btn sm">← กลับ</a><div class="grow"></div>
-      ${Core.isLead(me) && (t.status === 'blocked' || late) ? '<button class="btn sm" data-act="escalate">Escalate ให้ Manager</button>' : ''}
+      ${Core.isLead(me) && (t.status === 'blocked' || late) ? '<button class="btn sm" data-act="escalate">Escalate ให้ Section Sales Mgr.</button>' : ''}
       <a class="btn sm" href="${esc(UI.calUrl(t))}" target="_blank" rel="noopener">📅 เพิ่มลง Google Calendar</a>
       ${canEdit ? `<a class="btn sm" href="#/edit/${t.id}">แก้ไข</a>` : ''}${Core.isLead(me) ? '<button class="btn sm" data-act="del-task">ลบงาน</button>' : ''}</div>
     <div class="grid detail">
@@ -183,7 +183,7 @@
     const d = el.dataset.d, u = el.dataset.u, id = tid();
     UI.askNote(d === 'approved' ? 'อนุมัติปิดงาน' : 'ส่งกลับแก้ไข', d === 'approved' ? 'หมายเหตุ (ถ้ามี)' : 'เหตุผลที่ส่งกลับ', (n) => UI.run(() => api.review(id, u, d, n), d === 'approved' ? 'อนุมัติปิดงานแล้ว' : 'ส่งกลับแก้ไขแล้ว'), d === 'rejected');
   };
-  A.escalate = () => UI.askNote('Escalate ให้ Manager', 'รายละเอียดปัญหา', (n) => UI.run(() => api.escalate(tid(), n), 'ส่งแจ้ง Manager แล้ว'), true);
+  A.escalate = () => UI.askNote('Escalate ให้ Section Sales Mgr.', 'รายละเอียดปัญหา', (n) => UI.run(() => api.escalate(tid(), n), 'ส่งแจ้ง Section Sales Mgr. แล้ว'), true);
   A['del-task'] = () => { if (confirm('ลบงานนี้ถาวร? (ประวัติและไฟล์แนบจะถูกลบด้วย)')) UI.run(async () => { await api.deleteTask(tid()); location.hash = '#/tasks'; }, 'ลบงานแล้ว'); };
   A['add-comment'] = () => { const b = val('cm-in').trim(); if (b) UI.run(() => api.addComment(tid(), b), 'ส่งความคิดเห็นแล้ว'); };
   A['add-link'] = () => { const u = val('att-url').trim(); if (!/^https?:\/\//i.test(u)) return UI.toast('ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://', true); UI.run(() => api.addLink(tid(), u, u), 'เพิ่มลิงก์แล้ว'); };
@@ -198,7 +198,7 @@
   /* ---------- CREATE / EDIT ---------- */
   P.form = (id) => {
     const t = id ? S.ctx.tasks.find((x) => x.id === id) : null, me = S.me;
-    if (!Core.isLead(me)) return '<div class="card empty">เฉพาะ Admin / Manager เท่านั้นที่มอบหมายงานได้</div>';
+    if (!Core.isLead(me)) return '<div class="card empty">เฉพาะ ASGM - Sales / Section Sales Mgr. เท่านั้นที่มอบหมายงานได้</div>';
     if (id && (!t || !Core.canEdit(UI.cx(), me, t))) return '<div class="card empty">ไม่พบงาน หรือไม่มีสิทธิ์แก้ไข</div>';
     const d = !t && S.draft ? S.draft.payload || {} : null, dv = (k, def) => (d && d[k] !== undefined && d[k] !== null ? d[k] : def);
     const sel = t ? t.assignees.map((a) => a.user_id) : dv('asg', []), cands = Core.assignable(UI.cx(), me).sort((a, b) => a.full_name.localeCompare(b.full_name, 'th'));
@@ -216,7 +216,7 @@
       <div class="row"><div class="fld"><label>ผู้ตรวจสอบงาน (อนุมัติปิดงาน)</label><select id="f-rev"><option value="">— ผู้สร้างงาน —</option>${leads.map((u) => `<option value="${u.id}" ${(t ? t.reviewer_id : dv('rev', '') || me.id) === u.id ? 'selected' : ''}>${esc(u.full_name)} (${UI.ROLE[u.role]})</option>`).join('')}</select></div>
         ${t ? '' : `<div class="fld"><label>งานประจำ (สร้างซ้ำอัตโนมัติ)</label><select id="f-rec">${o(UI.REC, dv('rec', 'none'))}</select></div>`}</div>
       <div class="fld"><label>ผู้รับผิดชอบ * (เลือกได้หลายคน — แต่ละคนมีสถานะแยกกัน)</label>
-        <div style="max-height:240px;overflow:auto">${cands.map((u) => `<label class="chk"><input type="checkbox" name="f-asg" value="${u.id}" ${sel.includes(u.id) ? 'checked' : ''}> <span>${esc(u.full_name)} <span class="sub">· ${UI.ROLE[u.role]} · ${esc(UI.dname(u.department_id))}</span></span></label>`).join('') || '<div class="sub">ไม่มีพนักงานในความดูแลของคุณ — ให้ Admin กำหนดทีมก่อน</div>'}</div></div>
+        <div style="max-height:240px;overflow:auto">${cands.map((u) => `<label class="chk"><input type="checkbox" name="f-asg" value="${u.id}" ${sel.includes(u.id) ? 'checked' : ''}> <span>${esc(u.full_name)} <span class="sub">· ${UI.ROLE[u.role]} · ${esc(UI.dname(u.department_id))}</span></span></label>`).join('') || '<div class="sub">ไม่มีพนักงานในความดูแลของคุณ — ให้ ASGM - Sales กำหนดทีมก่อน</div>'}</div></div>
       ${t ? '' : `<div class="fld"><label>Checklist / Subtasks (บรรทัดละ 1 รายการ)</label><textarea id="f-subs">${esc(dv('subs', ''))}</textarea></div>
       <div class="fld"><label>ลิงก์เอกสารอ้างอิง (บรรทัดละ 1 ลิงก์ ขึ้นต้น http)</label><textarea id="f-links">${esc(dv('links', ''))}</textarea></div>
       <div class="fld"><label>แนบไฟล์ / รูปภาพ (เลือกได้หลายไฟล์ ไม่เกิน 5 MB ต่อไฟล์)</label><input type="file" id="f-files" multiple></div>`}

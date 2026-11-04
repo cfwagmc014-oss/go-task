@@ -154,6 +154,7 @@
         if (members.length) ok(await sb.from('team_members').insert(members.map((m) => ({ team_id: teamId, user_id: m.user_id, member_role: m.member_role }))));
       },
       async deleteTeam(id) { ok(await sb.from('teams').delete().eq('id', id)); },
+      async deleteUser() { throw new Error('ยังไม่รองรับการลบผู้ใช้ในโหมดนี้'); },
       async saveSetting(key, value) { ok(await sb.from('app_settings').upsert({ key, value })); },
     };
   }
@@ -357,6 +358,16 @@
         if (u.id) Object.assign(db.users.find((x) => x.id === u.id), row); else db.users.push({ id: uid(), ...row });
         save();
       },
+      async deleteUser(id) {
+        assertAdmin();
+        if (id === meId) throw new Error('ไม่สามารถลบบัญชีของตนเองได้');
+        if (db.tasks.some((t) => t.created_by === id || t.reviewer_id === id || (t.assignees || []).some((a) => a.user_id === id))) throw new Error('ผู้ใช้นี้มีประวัติงานในระบบ ลบไม่ได้ — ให้เปลี่ยนสถานะเป็น "ระงับ" แทน');
+        db.users = db.users.filter((u) => u.id !== id);
+        db.teamMembers = db.teamMembers.filter((m) => m.user_id !== id);
+        db.notifications = db.notifications.filter((n) => n.user_id !== id);
+        db.teams.forEach((t) => { if (t.manager_id === id) t.manager_id = null; });
+        save();
+      },
       async saveDept(d) { assertAdmin(); if (d.id) db.departments.find((x) => x.id === d.id).name = d.name; else db.departments.push({ id: uid(), name: d.name }); save(); },
       async saveTeam(t) {
         assertAdmin();
@@ -376,44 +387,69 @@
     const SK = 'gotask_gas_session';
     let session = null, me = null;
     try { session = localStorage.getItem(SK); } catch (e) { /* ignore */ }
-    const call = async (action, params) => {
+    const CK = 'gotask_ctx';
+    const pend = { ctx: null, detail: null };
+    const fresh = (x) => x && Date.now() - x.t < 20000;
+    const saveCtx = (d) => { try { localStorage.setItem(CK, JSON.stringify({ t: Date.now(), ctx: d })); } catch (e) { /* เต็ม/ปิดใช้งาน — ข้าม */ } };
+    const clearCtx = () => { try { localStorage.removeItem(CK); } catch (e) { /* ignore */ } };
+    const busy = (d, label) => { try { window.dispatchEvent(new CustomEvent('gt:busy', { detail: { d, label } })); } catch (e) { /* ไม่มี DOM */ } };
+    const call = async (action, params, refresh, quiet) => {
+      if (quiet) return rawCall(action, params, refresh);
+      busy(1, action);
+      try { return await rawCall(action, params, refresh); } finally { busy(-1, action); }
+    };
+    const rawCall = async (action, params, refresh) => {
       let r;
-      try { r = await fetch(CFG.GAS_URL, { method: 'POST', body: JSON.stringify({ action, session, params: params || {} }), redirect: 'follow' }); }
+      try { r = await fetch(CFG.GAS_URL, { method: 'POST', body: JSON.stringify({ action, session, params: params || {}, refresh: !!refresh }), redirect: 'follow' }); }
       catch (e) { throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต หรือ URL ของ Apps Script'); }
       let j; try { j = await r.json(); } catch (e) { throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง (ตรวจสอบว่า Deploy เป็น Web app แบบ Anyone)'); }
-      if (!j.ok) { if (j.code === 'AUTH') { session = null; try { localStorage.removeItem(SK); } catch (e) { /* ignore */ } } throw new Error(j.error); }
+      if (!j.ok) { if (j.code === 'AUTH') { session = null; clearCtx(); try { localStorage.removeItem(SK); } catch (e) { /* ignore */ } } throw new Error(j.error); }
+      if (j.ctx) { pend.ctx = { t: Date.now(), d: j.ctx }; me = j.ctx.me || me; saveCtx(j.ctx); }
+      if (j.detail) pend.detail = { t: Date.now(), id: j.detail.id, d: j.detail.data };
       return j.data;
     };
+    const wcall = (action, params, quiet) => call(action, params, true, quiet); // คำสั่งเขียน: ขอข้อมูลล่าสุดกลับมาในคำตอบเดียว
     return {
       mode: 'gas',
-      async init() { if (!session) return false; try { me = await call('me'); return true; } catch (e) { return false; } },
+      async init() {
+        if (!session) return false;
+        try { const c = JSON.parse(localStorage.getItem(CK) || 'null'); if (c && c.ctx && c.ctx.me && c.ctx.me.status === 'approved') { me = c.ctx.me; pend.stale = c.ctx; return true; } } catch (e) { /* ไม่มีแคช */ }
+        try { const d = await call('loadAll'); me = d.me; pend.ctx = { t: Date.now(), d }; saveCtx(d); return true; } catch (e) { return false; }
+      },
+      staleCtx() { const c = pend.stale; pend.stale = null; return c || null; },
       onAuth() {},
       async googleLogin(idToken) {
         const r = await call('login', { idToken });
         me = r.profile; session = r.session;
         try { if (session) localStorage.setItem(SK, session); else localStorage.removeItem(SK); } catch (e) { /* ignore */ }
       },
-      async signOut() { session = null; me = null; try { localStorage.removeItem(SK); } catch (e) { /* ignore */ } },
+      async signOut() { session = null; me = null; pend.ctx = pend.detail = pend.stale = null; clearCtx(); try { localStorage.removeItem(SK); } catch (e) { /* ignore */ } },
       signIn: async () => { throw new Error('ใช้ปุ่ม Sign in with Google'); },
       signUp: async () => { throw new Error('ใช้ปุ่ม Sign in with Google — บัญชีใหม่จะอยู่สถานะรอ Admin อนุมัติ'); },
       signInGoogle: async () => { throw new Error('ใช้ปุ่ม Sign in with Google'); },
       resetPassword: async () => { throw new Error('ระบบนี้ใช้บัญชี Google — ไม่มีรหัสผ่านของระบบ'); },
       updatePassword: async () => { throw new Error('ระบบนี้ใช้บัญชี Google — ไม่มีรหัสผ่านของระบบ'); },
       async myProfile() { return me; },
-      async loadAll() { const d = await call('loadAll'); me = d.me; return d; },
-      detail: (id) => call('detail', { id }),
-      createTask: (t) => call('createTask', t),
-      async updateTask(id, t) { await call('updateTask', { id, ...t }); },
-      async deleteTask(id) { await call('deleteTask', { id }); },
-      async setMyStatus(taskId, status, progress, note) { await call('setMyStatus', { taskId, status, progress, note }); },
-      async review(taskId, assignee, decision, note) { await call('review', { taskId, assignee, decision, note }); },
-      async escalate(id, note) { await call('escalate', { id, note }); },
-      async addComment(taskId, body) { await call('addComment', { taskId, body }); },
-      async addLink(taskId, name, url) { await call('addLink', { taskId, name, url }); },
+      async loadAll(quiet) {
+        if (fresh(pend.ctx)) { const d = pend.ctx.d; pend.ctx = null; return d; }
+        const d = await call('loadAll', null, false, !!quiet); me = d.me; saveCtx(d); return d;
+      },
+      async detail(id) {
+        if (fresh(pend.detail) && pend.detail.id === id) { const d = pend.detail.d; pend.detail = null; return d; }
+        return call('detail', { id });
+      },
+      createTask: (t) => wcall('createTask', t),
+      async updateTask(id, t) { await wcall('updateTask', { id, ...t }); },
+      async deleteTask(id) { await wcall('deleteTask', { id }); },
+      async setMyStatus(taskId, status, progress, note) { await wcall('setMyStatus', { taskId, status, progress, note }); },
+      async review(taskId, assignee, decision, note) { await wcall('review', { taskId, assignee, decision, note }); },
+      async escalate(id, note) { await wcall('escalate', { id, note }); },
+      async addComment(taskId, body) { await wcall('addComment', { taskId, body }); },
+      async addLink(taskId, name, url) { await wcall('addLink', { taskId, name, url }); },
       async addFile(taskId, file) {
         if (file.size > 5 * 1024 * 1024) throw new Error('ไฟล์ใหญ่เกิน 5 MB');
         const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(file); });
-        await call('addFile', { taskId, name: file.name, mime: file.type, b64 });
+        await wcall('addFile', { taskId, name: file.name, mime: file.type, b64 });
       },
       async fileUrl(att) {
         if (att.kind === 'link') return att.url;
@@ -422,26 +458,27 @@
         for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
         return URL.createObjectURL(new Blob([arr], { type: d.mime }));
       },
-      async deleteAttachment(att) { await call('deleteAttachment', { id: att.id }); },
-      async toggleSubtask(id, done) { await call('toggleSubtask', { id, done }); },
-      async markRead(id) { await call('markRead', { id }); },
-      async markAllRead() { await call('markAllRead'); },
+      async deleteAttachment(att) { await wcall('deleteAttachment', { id: att.id }); },
+      async toggleSubtask(id, done) { await wcall('toggleSubtask', { id, done }); },
+      async markRead(id) { await wcall('markRead', { id }, true); },
+      async markAllRead() { await wcall('markAllRead'); },
       listUsers: () => call('listUsers'),
-      async saveUser(u) { await call('saveUser', u); },
-      async saveDept(d) { await call('saveDept', d); },
-      saveTeam: (t) => call('saveTeam', t),
-      async setTeamMembers(teamId, members) { await call('setTeamMembers', { teamId, members }); },
-      async deleteTeam(id) { await call('deleteTeam', { id }); },
-      async saveSetting(key, value) { await call('saveSetting', { key, value }); },
+      async saveUser(u) { await wcall('saveUser', u); },
+      async deleteUser(id) { await wcall('deleteUser', { id }); },
+      async saveDept(d) { await wcall('saveDept', d); },
+      saveTeam: (t) => wcall('saveTeam', t),
+      async setTeamMembers(teamId, members) { await wcall('setTeamMembers', { teamId, members }); },
+      async deleteTeam(id) { await wcall('deleteTeam', { id }); },
+      async saveSetting(key, value) { await wcall('saveSetting', { key, value }); },
       lineBindCode: () => call('lineBindCode'),
       listTodos: () => call('listTodos'),
-      async addTodo(t) { return call('addTodo', t); },
-      async toggleTodo(id, done) { await call('toggleTodo', { id, done }); },
-      async deleteTodo(id) { await call('deleteTodo', { id }); },
-      async moveTodos(ids, date) { await call('moveTodos', { ids, date }); },
-      listDrafts: () => call('listDrafts'),
+      async addTodo(t) { return call('addTodo', t, false, true); },
+      async toggleTodo(id, done) { await call('toggleTodo', { id, done }, false, true); },
+      async deleteTodo(id) { await call('deleteTodo', { id }, false, true); },
+      async moveTodos(ids, date) { await call('moveTodos', { ids, date }, false, true); },
+      listDrafts: () => call('listDrafts', null, false, true),
       saveDraft: (d) => call('saveDraft', d),
-      async deleteDraft(id) { await call('deleteDraft', { id }); },
+      async deleteDraft(id) { await call('deleteDraft', { id }, false, true); },
     };
   }
 

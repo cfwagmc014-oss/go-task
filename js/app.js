@@ -73,16 +73,28 @@
   UI.enter = async () => {
     S.todos = null; S.drafts = []; S.draft = null; S.draftMenuOpen = false; // กันข้อมูลส่วนตัวของผู้ใช้ก่อนหน้าค้างอยู่
     try { S.me = await api.myProfile(); } catch (e) { return UI.renderLogin(e.message); }
-    if (!S.me) { await api.signOut(); return UI.renderLogin('ไม่พบโปรไฟล์ผู้ใช้ กรุณาติดต่อ Admin'); }
+    if (!S.me) { await api.signOut(); return UI.renderLogin('ไม่พบโปรไฟล์ผู้ใช้ กรุณาติดต่อ ASGM - Sales'); }
     if (S.me.status !== 'approved') return UI.renderPending(S.me.status);
-    try { await reloadCtx(); } catch (e) { return UI.renderLogin('โหลดข้อมูลไม่สำเร็จ: ' + e.message); }
+    /* แสดงหน้าทันทีจากข้อมูลที่จำไว้ครั้งก่อน (ถ้ามี) แล้วค่อยอัปเดตเบื้องหลัง — ไม่ต้องรอ Google Sheet */
+    const stale = api.staleCtx ? api.staleCtx() : null;
+    if (stale) { S.ctx = stale; S.me = stale.me || S.me; }
+    else { try { await reloadCtx(); } catch (e) { return UI.renderLogin('โหลดข้อมูลไม่สำเร็จ: ' + e.message); } }
     if (!location.hash || location.hash === '#') location.hash = '#/dashboard';
+    if (stale) {
+      api.loadAll(true).then((c) => {
+        if (!S.me) return;
+        S.ctx = c; S.me = c.me || S.me;
+        const a = document.activeElement, typing = a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'gsearch';
+        if (S.page === 'form' || typing || !$('#modal').hidden) return; // ไม่รีเฟรชทับสิ่งที่กำลังพิมพ์
+        const y = window.scrollY; UI.render(); window.scrollTo(0, y);
+      }).catch(async (e) => { if (/เข้าสู่ระบบ/.test(e.message || '')) { await api.signOut(); S.me = null; S.ctx = null; UI.renderLogin('เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง'); } });
+    }
     if (Core.isLead(S.me)) api.listDrafts().then((d) => { S.drafts = d; UI.refreshDraftMenu(); }).catch(() => { /* ไม่ขัดการใช้งาน */ });
     await UI.route();
     clearInterval(poll);
     poll = setInterval(async () => {
       if (!S.me || document.hidden) return;
-      try { const c = await api.loadAll(); S.ctx.notifications = c.notifications; const n = c.notifications.filter((x) => !x.read_at).length, b = $('#bellcount'); if (b) { b.textContent = n; b.hidden = !n; } const p = $('#notif'); if (p) p.innerHTML = notifHtml(); } catch (e) { /* เงียบ — ลองใหม่รอบถัดไป */ }
+      try { const c = await api.loadAll(true); S.ctx.notifications = c.notifications; const n = c.notifications.filter((x) => !x.read_at).length, b = $('#bellcount'); if (b) { b.textContent = n; b.hidden = !n; } const p = $('#notif'); if (p) p.innerHTML = notifHtml(); } catch (e) { /* เงียบ — ลองใหม่รอบถัดไป */ }
     }, 120000);
   };
 

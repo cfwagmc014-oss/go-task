@@ -18,7 +18,7 @@
   UI.STH = { todo: 'ยังไม่เริ่ม', in_progress: 'กำลังดำเนินการ', blocked: 'ติดปัญหา', pending_approval: 'รอตรวจสอบ', completed: 'อนุมัติปิดงานแล้ว', rework: 'ส่งกลับแก้ไข' };
   UI.SCOL = { todo: '#9ca3af', in_progress: '#2563eb', blocked: '#D71920', pending_approval: '#d97706', completed: '#16a34a', rework: '#7e22ce' };
   UI.PRI = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
-  UI.ROLE = { admin: 'Admin', manager: 'Manager / ASGM', supervisor: 'Supervisor' };
+  UI.ROLE = { admin: 'ASGM - Sales', manager: 'Section Sales Mgr.', supervisor: 'Supervisor' };
   UI.REC = { none: 'ไม่ทำซ้ำ', daily: 'รายวัน', weekly: 'รายสัปดาห์', monthly: 'รายเดือน' };
 
   /* lookups */
@@ -93,6 +93,34 @@
     UI.$('#note-ok').onclick = () => { const v = UI.$('#note-in').value.trim(); if (required && !v) return UI.toast('กรุณาระบุเหตุผล', true); UI.closeModal(); cb(v); };
     UI.$('#note-in').focus();
   };
+
+
+  /* ---- loader: แสดงเมื่อมีการเรียกเซิร์ฟเวอร์เกิน 350ms ---- */
+  (function () {
+    const MSG = ['กำลังไล่เก็บเม็ดทรายแห่งเวลา', 'กำลังเรียงงานให้เข้าที่', 'เดี๋ยวมาทันที ไม่ปล่อยงานตกหล่น', 'กำลังคุยกับ Google Sheets', 'ใกล้เสร็จแล้ว อดใจอีกนิด ☕'];
+    let n = 0, showT = null, rot = null, slowT = null, el = null, bar = null, i = 0;
+    const mk = () => {
+      if (el) return;
+      el = document.createElement('div'); el.className = 'gtl'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+      el.innerHTML = '<svg class="hg" viewBox="0 0 40 52" aria-hidden="true"><defs><clipPath id="hgL"><path d="M7 5h26v5c0 7-8 10-8 16s8 9 8 16v5H7v-5c0-7 8-10 8-16S7 17 7 10z"/></clipPath></defs><path class="hg-f" d="M7 5h26v5c0 7-8 10-8 16s8 9 8 16v5H7v-5c0-7 8-10 8-16S7 17 7 10z"/><g clip-path="url(#hgL)"><rect class="hg-top" x="5" y="6" width="30" height="20"/><rect class="hg-bot" x="5" y="26" width="30" height="22"/><rect class="hg-str" x="19.2" y="24" width="1.6" height="22"/></g><rect class="hg-cap" x="3" y="2" width="34" height="4" rx="2"/><rect class="hg-cap" x="3" y="46" width="34" height="4" rx="2"/></svg><span><span class="gtl-t"></span><span class="gtl-d"></span></span>';
+      bar = document.createElement('div'); bar.className = 'gtl-bar';
+      document.body.appendChild(bar); document.body.appendChild(el);
+    };
+    const say = (m) => { const t = el.querySelector('.gtl-t'); t.textContent = m; t.style.animation = 'none'; void t.offsetWidth; t.style.animation = ''; };
+    const show = () => {
+      mk(); i = Math.floor(Math.random() * MSG.length); say(MSG[i]);
+      el.classList.add('on'); bar.classList.add('on');
+      rot = setInterval(() => { i = (i + 1) % MSG.length; say(MSG[i]); }, 2600);
+      slowT = setTimeout(() => say('Google ตื่นช้าหน่อย รออีกสักครู่นะ'), 9000);
+    };
+    const hide = () => { if (!el) return; el.classList.remove('on'); bar.classList.remove('on'); clearInterval(rot); clearTimeout(slowT); rot = null; };
+    UI.busy = (d) => {
+      n = Math.max(0, n + d);
+      if (n > 0 && !showT && !rot) showT = setTimeout(() => { showT = null; if (n > 0) show(); }, 350);
+      if (n === 0) { clearTimeout(showT); showT = null; hide(); }
+    };
+    window.addEventListener('gt:busy', (e) => UI.busy(e.detail.d));
+  })();
 
   /* run an action → toast → refresh */
   UI.calUrl = (t) => {
