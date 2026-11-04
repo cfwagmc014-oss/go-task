@@ -18,7 +18,7 @@
   UI.STH = { todo: 'ยังไม่เริ่ม', in_progress: 'กำลังดำเนินการ', blocked: 'ติดปัญหา', pending_approval: 'รอตรวจสอบ', completed: 'อนุมัติปิดงานแล้ว', rework: 'ส่งกลับแก้ไข' };
   UI.SCOL = { todo: '#9ca3af', in_progress: '#2563eb', blocked: '#D71920', pending_approval: '#d97706', completed: '#16a34a', rework: '#7e22ce' };
   UI.PRI = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
-  UI.ROLE = { admin: 'Admin', manager: 'Manager / ASGM', supervisor: 'Supervisor', staff: 'Staff' };
+  UI.ROLE = { admin: 'Admin', manager: 'Manager / ASGM', supervisor: 'Supervisor' };
   UI.REC = { none: 'ไม่ทำซ้ำ', daily: 'รายวัน', weekly: 'รายสัปดาห์', monthly: 'รายเดือน' };
 
   /* lookups */

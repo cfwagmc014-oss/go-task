@@ -6,7 +6,7 @@
 
   const NAV = [
     { g: 'งานของฉัน', items: [['dashboard', '🏠', 'My Dashboard'], ['tasks', '✅', 'My Tasks'], ['todo', '🗒️', 'To-Do รายวัน']] },
-    { g: 'ผู้จัดการ / หัวหน้างาน', test: Core.isLead, items: [['new', '➕', 'มอบหมายงาน'], ['team', '📊', 'Team Dashboard'], ['approvals', '🔎', 'Approval Center'], ['reports', '📈', 'Performance Reports']] },
+    { g: 'ผู้จัดการ', test: Core.isLead, items: [['new', '➕', 'มอบหมายงาน'], ['team', '📊', 'Team Dashboard'], ['approvals', '🔎', 'Approval Center'], ['reports', '📈', 'Performance Reports']] },
     { g: 'ผู้ดูแลระบบ', test: Core.isAdmin, items: [['users', '👥', 'User Management']] },
     { g: 'ทั่วไป', items: [['settings', '⚙️', 'Settings']] },
   ];

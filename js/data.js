@@ -11,39 +11,17 @@
   const HOUR = 3600e3, DAY = 24 * HOUR;
 
   /* ---------------- Core: permissions & metrics ---------------- */
-  const LEADS = ['admin', 'manager', 'supervisor'];
+  const LEADS = ['admin', 'manager']; // สิทธิ์เต็มด้านงาน; supervisor = พนักงานทั่วไป
   const Core = {
     LEADS,
     isAdmin: (u) => !!u && u.role === 'admin',
     isLead: (u) => !!u && LEADS.includes(u.role),
     isManager: (u) => !!u && (u.role === 'admin' || u.role === 'manager'),
-    manages(ctx, me, target) {
-      if (!me) return false;
-      if (me.role === 'admin') return true;
-      if (!['manager', 'supervisor'].includes(me.role)) return false;
-      return ctx.teamMembers.some((tt) => {
-        if (tt.user_id !== target) return false;
-        const team = ctx.teams.find((t) => t.id === tt.team_id);
-        if (team && team.manager_id === me.id) return true;
-        return ctx.teamMembers.some((tm) => tm.team_id === tt.team_id && tm.user_id === me.id && tm.member_role === 'supervisor');
-      });
-    },
-    canView(ctx, me, t) {
-      if (!me) return false;
-      if (me.role === 'admin' || t.created_by === me.id || t.reviewer_id === me.id) return true;
-      return t.assignees.some((a) => a.user_id === me.id || Core.manages(ctx, me, a.user_id));
-    },
-    canEdit(ctx, me, t) {
-      if (!me) return false;
-      return me.role === 'admin' || t.created_by === me.id || (['manager', 'supervisor'].includes(me.role) && Core.canView(ctx, me, t));
-    },
-    canReview(ctx, me, t, a) {
-      if (!me || !a || a.status !== 'pending_approval' || me.id === a.user_id || !Core.isLead(me)) return false;
-      return me.role === 'admin' || t.reviewer_id === me.id || t.created_by === me.id || Core.manages(ctx, me, a.user_id);
-    },
-    assignable(ctx, me) {
-      return ctx.users.filter((u) => u.status !== 'suspended' && (me.role === 'admin' || u.id === me.id || Core.manages(ctx, me, u.id)));
-    },
+    manages: (ctx, me) => Core.isLead(me),
+    canView: (ctx, me, t) => !!me && (Core.isLead(me) || t.assignees.some((a) => a.user_id === me.id)),
+    canEdit: (ctx, me) => !!me && Core.isLead(me),
+    canReview: (ctx, me, t, a) => !!me && !!a && a.status === 'pending_approval' && me.id !== a.user_id && Core.isLead(me),
+    assignable: (ctx, me) => ctx.users.filter((u) => u.status !== 'suspended' && (Core.isLead(me) || u.id === me.id)),
     isOverdue(t, a, now = Date.now()) {
       const st = a ? a.status : t.status;
       return st !== 'completed' && new Date(t.due_date).getTime() < now;
@@ -194,11 +172,11 @@
       const mgr = U('สมชาย (ASGM)', 'manager', 'ASGM', 'Store Operations', 'D002');
       const sup1 = U('วิภา หัวหน้าทีมสด', 'supervisor', 'Supervisor Fresh', 'Fresh Food', 'D003');
       const sup2 = U('ประเสริฐ หัวหน้าทีมแห้ง', 'supervisor', 'Supervisor Dry', 'Dry & Grocery', 'D004');
-      const s1 = U('อรทัย', 'staff', 'Staff Fresh', 'Fresh Food', 'D011');
-      const s2 = U('ธนากร', 'staff', 'Staff Fresh', 'Fresh Food', 'D012');
-      const s3 = U('กมลา', 'staff', 'Staff Butchery', 'Butchery', 'D013');
-      const s4 = U('พิชัย', 'staff', 'Staff Dry', 'Dry & Grocery', 'D014');
-      const s5 = U('สุดา', 'staff', 'Staff Dry', 'Dry & Grocery', 'D015');
+      const s1 = U('อรทัย', 'supervisor', 'Staff Fresh', 'Fresh Food', 'D011');
+      const s2 = U('ธนากร', 'supervisor', 'Staff Fresh', 'Fresh Food', 'D012');
+      const s3 = U('กมลา', 'supervisor', 'Staff Butchery', 'Butchery', 'D013');
+      const s4 = U('พิชัย', 'supervisor', 'Staff Dry', 'Dry & Grocery', 'D014');
+      const s5 = U('สุดา', 'supervisor', 'Staff Dry', 'Dry & Grocery', 'D015');
       const users = [admin, mgr, sup1, sup2, s1, s2, s3, s4, s5];
       const t1 = { id: uid(), name: 'ทีม Fresh & Butchery', department_id: dep('Fresh Food'), manager_id: mgr.id };
       const t2 = { id: uid(), name: 'ทีม Dry & Grocery', department_id: dep('Dry & Grocery'), manager_id: mgr.id };
@@ -303,7 +281,7 @@
           created_at: nowISO(), updated_at: nowISO(), assignees: [], subtasks: [] };
         const c = ctx();
         p.assignees.forEach((u) => {
-          if (!(Core.isAdmin(me()) || u === meId || Core.manages(c, me(), u))) throw new Error('มอบหมายได้เฉพาะพนักงานที่คุณดูแล');
+          if (!(Core.isLead(me()) || u === meId)) throw new Error('มอบหมายได้เฉพาะพนักงานที่คุณดูแล');
           t.assignees.push({ task_id: t.id, user_id: u, status: 'todo', progress: 0, started_at: null, submitted_at: null, completed_at: null, updated_at: nowISO() });
           if (u !== meId) notify(u, 'assigned', 'ได้รับมอบหมายงานใหม่', label(t), t.id, `assigned:${t.id}:${u}`);
         });
@@ -317,7 +295,7 @@
         if (!Core.canEdit(c, me(), t)) throw new Error('ไม่มีสิทธิ์แก้ไขงานนี้');
         Object.assign(t, { title: p.title, description: p.description, department_id: p.department_id || null, priority: p.priority, start_date: p.start_date, due_date: p.due_date, reviewer_id: p.reviewer_id || null, updated_at: nowISO() });
         p.assignees.filter((u) => !old.includes(u)).forEach((u) => {
-          if (!(Core.isAdmin(me()) || u === meId || Core.manages(c, me(), u))) throw new Error('มอบหมายได้เฉพาะพนักงานที่คุณดูแล');
+          if (!(Core.isLead(me()) || u === meId)) throw new Error('มอบหมายได้เฉพาะพนักงานที่คุณดูแล');
           t.assignees.push({ task_id: id, user_id: u, status: 'todo', progress: 0, started_at: null, submitted_at: null, completed_at: null, updated_at: nowISO() });
           notify(u, 'assigned', 'ได้รับมอบหมายงานใหม่', label(t), id, `assigned:${id}:${u}`);
         });
@@ -326,7 +304,7 @@
       },
       async deleteTask(id) {
         const t = task(id);
-        if (!(Core.isAdmin(me()) || t.created_by === meId)) throw new Error('ไม่มีสิทธิ์ลบงาน');
+        if (!Core.isLead(me())) throw new Error('ไม่มีสิทธิ์ลบงาน');
         db.tasks = db.tasks.filter((x) => x.id !== id); save();
       },
       async setMyStatus(id, status, progress, note) {

@@ -153,7 +153,7 @@
     return `<div class="ph"><a href="#/tasks" class="btn sm">← กลับ</a><div class="grow"></div>
       ${Core.isLead(me) && (t.status === 'blocked' || late) ? '<button class="btn sm" data-act="escalate">Escalate ให้ Manager</button>' : ''}
       <a class="btn sm" href="${esc(UI.calUrl(t))}" target="_blank" rel="noopener">📅 เพิ่มลง Google Calendar</a>
-      ${canEdit ? `<a class="btn sm" href="#/edit/${t.id}">แก้ไข</a>` : ''}${Core.isAdmin(me) || t.created_by === me.id ? '<button class="btn sm" data-act="del-task">ลบงาน</button>' : ''}</div>
+      ${canEdit ? `<a class="btn sm" href="#/edit/${t.id}">แก้ไข</a>` : ''}${Core.isLead(me) ? '<button class="btn sm" data-act="del-task">ลบงาน</button>' : ''}</div>
     <div class="grid detail">
       <div class="grid" style="align-content:start">
         <div class="card"><div class="meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="sub">${esc(t.task_no)}</span>${UI.prio(t.priority)}${UI.badge(t.status)}</div>
@@ -198,7 +198,7 @@
   /* ---------- CREATE / EDIT ---------- */
   P.form = (id) => {
     const t = id ? S.ctx.tasks.find((x) => x.id === id) : null, me = S.me;
-    if (!Core.isLead(me)) return '<div class="card empty">เฉพาะ Admin / Manager / Supervisor เท่านั้นที่มอบหมายงานได้</div>';
+    if (!Core.isLead(me)) return '<div class="card empty">เฉพาะ Admin / Manager เท่านั้นที่มอบหมายงานได้</div>';
     if (id && (!t || !Core.canEdit(UI.cx(), me, t))) return '<div class="card empty">ไม่พบงาน หรือไม่มีสิทธิ์แก้ไข</div>';
     const d = !t && S.draft ? S.draft.payload || {} : null, dv = (k, def) => (d && d[k] !== undefined && d[k] !== null ? d[k] : def);
     const sel = t ? t.assignees.map((a) => a.user_id) : dv('asg', []), cands = Core.assignable(UI.cx(), me).sort((a, b) => a.full_name.localeCompare(b.full_name, 'th'));

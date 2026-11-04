@@ -133,7 +133,7 @@
   };
   A.utab = (el) => { S.usersTab = el.dataset.t; UI.render(); };
   A['user-edit'] = (el) => {
-    const u = (S.adminUsers || []).find((x) => x.id === el.dataset.id) || { role: 'staff', status: 'approved' };
+    const u = (S.adminUsers || []).find((x) => x.id === el.dataset.id) || { role: 'supervisor', status: 'approved' };
     const st = el.dataset.approve ? 'approved' : u.status;
     const o = (obj, v) => Object.entries(obj).map(([k, l]) => `<option value="${k}" ${v === k ? 'selected' : ''}>${l}</option>`).join('');
     UI.modal(`<h3>${u.id ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'}</h3><input type="hidden" id="u-id" value="${u.id || ''}">
@@ -153,7 +153,7 @@
   A['dept-rename'] = (el) => { const d = S.ctx.departments.find((x) => x.id === el.dataset.id), n = prompt('ชื่อแผนกใหม่', d.name); if (n && n.trim()) UI.run(() => api.saveDept({ id: d.id, name: n.trim() }), 'บันทึกแล้ว'); };
   A['team-edit'] = (el) => {
     const t = S.ctx.teams.find((x) => x.id === el.dataset.id) || {}, ms = S.ctx.teamMembers.filter((m) => m.team_id === t.id);
-    const mgrs = S.ctx.users.filter((u) => ['admin', 'manager', 'supervisor'].includes(u.role));
+    const mgrs = S.ctx.users.filter((u) => ['admin', 'manager'].includes(u.role));
     UI.modal(`<h3>${t.id ? 'แก้ไขทีม' : 'สร้างทีม'}</h3><input type="hidden" id="t-id" value="${t.id || ''}">
       <div class="fld"><label>ชื่อทีม *</label><input id="t-name" value="${esc(t.name || '')}"></div>
       <div class="row"><div class="fld"><label>แผนก</label><select id="t-dept"><option value="">—</option>${S.ctx.departments.map((d) => `<option value="${d.id}" ${t.department_id === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div>
