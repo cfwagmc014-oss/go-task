@@ -68,6 +68,8 @@
     const rows = UI.myRows(), m = UI.metrics(rows), me = S.me;
     const open = rows.filter((r) => r.a.status !== 'completed').sort((a, b) => new Date(a.t.due_date) - new Date(b.t.due_date));
     const toReview = UI.allRows().filter((r) => Core.canReview(UI.cx(), me, r.t, r.a)).length;
+    const byBoss = new Map(); rows.forEach((r) => { const k = r.t.created_by; if (!byBoss.has(k)) byBoss.set(k, []); byBoss.get(k).push(r); });
+    const fromTbl = byBoss.size ? `<div class="ph" style="margin-top:18px"><h3>สรุปงานที่ได้รับมอบหมาย แยกตามผู้มอบ</h3></div><div class="tbl-wrap"><table><thead><tr><th>ผู้มอบหมาย</th><th>ได้รับทั้งหมด</th><th>ยังไม่เสร็จ</th><th>เกินกำหนด</th><th>เสร็จแล้ว</th><th>งานถัดไปที่ครบกำหนด</th></tr></thead><tbody>${[...byBoss].map(([b, rs]) => { const o = rs.filter((r) => r.a.status !== 'completed').sort((x, y) => new Date(x.t.due_date) - new Date(y.t.due_date)), late = rs.filter((r) => Core.isOverdue(r.t, r.a)).length; return `<tr><td><b>${esc(UI.uname(b))}</b></td><td>${rs.length}</td><td>${o.length}</td><td>${late ? `<b style="color:var(--red)">${late}</b>` : 0}</td><td>${rs.length - o.length}</td><td>${o[0] ? `<a href="#/task/${o[0].t.id}">${esc(o[0].t.title)}</a> <small class="sub">${UI.fDT(o[0].t.due_date)}</small>` : '—'}</td></tr>`; }).join('')}</tbody></table></div>` : '';
     return `<div class="ph"><div><h1>สวัสดี ${esc(me.full_name)}</h1><div class="sub">${UI.ROLE[me.role]} · ${esc(UI.dname(me.department_id))}</div></div><div class="grow"></div>${Core.isLead(me) ? '<a class="btn pri" href="#/new">+ มอบหมายงานใหม่</a>' : ''}</div>
     <div class="grid kpis">
       ${UI.kpi('Total Assigned Tasks', m.assigned)}${UI.kpi('To Do', m.todo)}${UI.kpi('In Progress', m.in_progress, 'info')}
@@ -76,7 +78,7 @@
     </div>
     ${toReview ? `<div class="card" style="margin-bottom:14px;border-left:4px solid var(--warn)"><b>มี ${toReview} งานรอคุณตรวจสอบ</b> · <a href="#/approvals">ไปที่ Approval Center</a></div>` : ''}
     <div class="ph"><h3>งานที่ต้องทำ (เรียงตามกำหนดส่ง)</h3><div class="grow"></div><a href="#/tasks">ดูทั้งหมด →</a></div>
-    ${open.length ? `<div class="grid tcards">${open.slice(0, 6).map(UI.taskCard).join('')}</div>` : '<div class="card empty">ไม่มีงานค้าง 🎉</div>'}`;
+    ${open.length ? `<div class="grid tcards">${open.slice(0, 6).map(UI.taskCard).join('')}</div>` : '<div class="card empty">ไม่มีงานค้าง 🎉</div>'}${fromTbl}`;
   };
 
   /* ---------- MY TASKS ---------- */

@@ -6,7 +6,7 @@
 
   const NAV = [
     { g: 'งานของฉัน', items: [['dashboard', '🏠', 'My Dashboard'], ['tasks', '✅', 'My Tasks'], ['todo', '🗒️', 'To-Do รายวัน']] },
-    { g: 'ผู้จัดการ', test: Core.isLead, items: [['new', '➕', 'มอบหมายงาน'], ['team', '📊', 'Team Dashboard'], ['approvals', '🔎', 'Approval Center'], ['reports', '📈', 'Performance Reports']] },
+    { g: 'ผู้จัดการ', test: Core.isLead, items: [['new', '➕', 'มอบหมายงาน'], ['assigned', '📋', 'งานที่มอบหมาย'], ['team', '📊', 'Team Dashboard'], ['approvals', '🔎', 'Approval Center'], ['reports', '📈', 'Performance Reports']] },
     { g: 'ผู้ดูแลระบบ', test: Core.isAdmin, items: [['users', '👥', 'User Management']] },
     { g: 'ทั่วไป', items: [['settings', '⚙️', 'Settings']] },
   ];
@@ -134,6 +134,7 @@
     const el = e.target;
     if (el.id === 'gsearch') { S.q = el.value; if (S.page === 'tasks') refreshList(); else if (el.value.trim()) location.hash = '#/tasks'; }
     else if (el.dataset.chg === 'prog') UI.chg.prog(el);
+    else if (el.id === 'asg-q') UI.chg.asgf(el);
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') UI.closeModal(); if (e.key === 'Enter' && e.target.closest('.login') && e.target.tagName === 'INPUT') { const b = e.target.closest('.box').querySelector('[data-act$="-submit"]'); if (b) b.click(); } });
   window.addEventListener('hashchange', () => { S.notifOpen = false; S.draftMenuOpen = false; UI.route(); });

@@ -121,6 +121,52 @@
     XLSX.writeFile(wb, `GO-TASK-report-${dstr(new Date())}.xlsx`);
   };
 
+
+  /* ---------- งานที่มอบหมาย (ตารางรายละเอียดงานที่ฉันมอบ) ---------- */
+  P.assigned = () => {
+    if (!Core.isLead(S.me)) return noAccess;
+    const f = (S.asg = S.asg || { scope: 'mine', who: '', st: '', q: '', open: {} });
+    const nm = (a, b) => String(a).localeCompare(String(b), 'th');
+    let ts = S.ctx.tasks.filter((t) => f.scope === 'all' || t.created_by === S.me.id);
+    const people = [...new Set(ts.flatMap((t) => (t.assignees || []).map((a) => a.user_id)))].sort((a, b) => nm(UI.uname(a), UI.uname(b)));
+    if (f.who) ts = ts.filter((t) => (t.assignees || []).some((a) => a.user_id === f.who));
+    if (f.st === 'overdue') ts = ts.filter((t) => Core.isOverdue(t, null));
+    else if (f.st === 'open') ts = ts.filter((t) => t.status !== 'completed');
+    else if (f.st) ts = ts.filter((t) => t.status === f.st);
+    const q = f.q.trim().toLowerCase();
+    if (q) ts = ts.filter((t) => (t.task_no + ' ' + t.title + ' ' + (t.assignees || []).map((a) => UI.uname(a.user_id)).join(' ')).toLowerCase().includes(q));
+    ts = ts.slice().sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
+    const all = S.ctx.tasks.filter((t) => f.scope === 'all' || t.created_by === S.me.id);
+    const chip = (l, n, c) => `<div class="card" style="padding:10px 16px;min-width:110px"><div class="sub">${l}</div><b style="font-size:22px;color:${c || 'inherit'}">${n}</b></div>`;
+    const opt = (v, l, cur) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${esc(l)}</option>`;
+    const byP = new Map(); all.forEach((t) => (t.assignees || []).forEach((a) => { if (!byP.has(a.user_id)) byP.set(a.user_id, []); byP.get(a.user_id).push({ t, a }); }));
+    const pTbl = byP.size ? `<div class="tbl-wrap" style="margin-bottom:14px"><table><thead><tr><th>สรุปรายคน (คลิกเพื่อกรอง)</th><th>ได้รับมอบ</th><th>ยังไม่เสร็จ</th><th>เกินกำหนด</th><th>เสร็จแล้ว</th><th>คืบหน้าเฉลี่ย</th></tr></thead><tbody>${[...byP].sort((x, y) => nm(UI.uname(x[0]), UI.uname(y[0]))).map(([u, rs]) => { const op = rs.filter((r) => r.a.status !== 'completed').length, lt = rs.filter((r) => Core.isOverdue(r.t, r.a)).length, av = Math.round(rs.reduce((s, r) => s + (r.a.progress || 0), 0) / rs.length); return `<tr class="click ${f.who === u ? 'hl' : ''}" data-act="asg-who" data-id="${u}"><td><b>${esc(UI.uname(u))}</b></td><td>${rs.length}</td><td>${op}</td><td>${lt ? `<b style="color:var(--red)">${lt}</b>` : 0}</td><td>${rs.length - op}</td><td style="min-width:110px">${UI.bar(av, lt > 0)}<small>${av}%</small></td></tr>`; }).join('')}</tbody></table></div>` : '';
+    const rowsHtml = ts.map((t) => {
+      const as = t.assignees || [], avg = as.length ? Math.round(as.reduce((s, a) => s + (a.progress || 0), 0) / as.length) : 0, late = Core.isOverdue(t, null), open = !!f.open[t.id];
+      const who = as.map((a) => `<div style="white-space:nowrap">${esc(UI.uname(a.user_id))} ${UI.badge(a.status)}</div>`).join('') || '—';
+      const subs = t.subtasks || [], sd = subs.filter((s) => s.done).length;
+      const detail = open ? `<tr class="${late ? 'hl' : ''}"><td colspan="9" style="background:#fafafa"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;padding:6px 4px">
+        <div><div class="sub">รายละเอียดงาน</div><div>${esc(t.description || '—').replace(/\n/g, '<br>')}</div><div class="sub" style="margin-top:8px">เริ่ม ${UI.fDT(t.start_date)} · กำหนดส่ง ${UI.fDT(t.due_date)}</div><div class="sub">มอบโดย ${esc(UI.uname(t.created_by))} · ผู้ตรวจ ${esc(UI.uname(t.reviewer_id))}${subs.length ? ` · งานย่อย ${sd}/${subs.length}` : ''}</div><a class="btn sm" style="margin-top:8px;display:inline-block" href="#/task/${t.id}">เปิดหน้างาน →</a></div>
+        <div><div class="sub">สถานะรายคน</div><table style="width:100%"><tbody>${as.map((a) => `<tr><td>${esc(UI.uname(a.user_id))}</td><td>${UI.badge(a.status)}</td><td style="min-width:90px">${UI.bar(a.progress || 0, late && a.status !== 'completed')}<small>${a.progress || 0}%</small></td><td class="sub">${UI.fDT(a.updated_at)}</td></tr>`).join('')}</tbody></table></div></div></td></tr>` : '';
+      return `<tr class="click ${late ? 'hl' : ''}" data-act="asg-toggle" data-id="${t.id}"><td>${open ? '▾' : '▸'}</td><td>${esc(t.task_no)}</td><td><b>${esc(t.title)}</b></td><td>${who}</td><td>${UI.prio(t.priority)}</td><td>${UI.dueCell(t, t.status)}</td><td>${UI.badge(t.status)}</td><td style="min-width:110px">${UI.bar(avg, late)}<small>${avg}%</small></td><td>${UI.fDT(t.updated_at)}</td></tr>` + detail;
+    }).join('');
+    return `<div class="ph"><h1>งานที่มอบหมาย</h1><div class="sub">คลิกที่แถวเพื่อดูรายละเอียดและความคืบหน้ารายคน</div></div>
+      <div class="row" style="gap:10px;margin-bottom:12px;flex-wrap:wrap">${chip('งานทั้งหมด', all.length)}${chip('กำลังดำเนินการ', all.filter((t) => t.status !== 'completed').length, '#2563eb')}${chip('เกินกำหนด', all.filter((t) => Core.isOverdue(t, null)).length, '#D71920')}${chip('ปิดแล้ว', all.filter((t) => t.status === 'completed').length, '#16a34a')}</div>
+      ${pTbl}
+      <div class="row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <select class="inp" data-chg="asgf" data-k="scope">${opt('mine', 'งานที่ฉันมอบ', f.scope)}${Core.isAdmin(S.me) ? opt('all', 'งานทั้งหมดในระบบ', f.scope) : ''}</select>
+        <select class="inp" data-chg="asgf" data-k="who">${opt('', 'ผู้รับผิดชอบทั้งหมด', f.who)}${people.map((u) => opt(u, UI.uname(u), f.who)).join('')}</select>
+        <select class="inp" data-chg="asgf" data-k="st">${opt('', 'ทุกสถานะ', f.st)}${opt('open', 'ยังไม่ปิด', f.st)}${opt('overdue', 'เกินกำหนด', f.st)}${Object.keys(UI.STL).map((s) => opt(s, UI.STH[s], f.st)).join('')}</select>
+        <input class="inp" id="asg-q" data-chg="asgf" data-k="q" placeholder="ค้นหา Task ID / ชื่องาน / ชื่อคน" value="${esc(f.q)}" style="min-width:220px"></div>
+      ${ts.length ? `<div class="tbl-wrap"><table><thead><tr><th></th><th>Task ID</th><th>งาน</th><th>ผู้รับผิดชอบ / สถานะ</th><th>ความสำคัญ</th><th>กำหนดส่ง</th><th>สถานะงาน</th><th>คืบหน้า</th><th>อัปเดตล่าสุด</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>` : '<div class="card empty">ไม่พบงานตามเงื่อนไข</div>'}`;
+  };
+  A['asg-who'] = (el) => { S.asg.who = S.asg.who === el.dataset.id ? '' : el.dataset.id; UI.render(); };
+  A['asg-toggle'] = (el) => { const o = S.asg.open; o[el.dataset.id] = !o[el.dataset.id]; const y = window.scrollY; UI.render(); window.scrollTo(0, y); };
+  UI.chg.asgf = (el) => {
+    S.asg[el.dataset.k] = el.value;
+    if (el.dataset.k === 'q') { clearTimeout(UI._asgT); UI._asgT = setTimeout(() => { UI.render(); const i = document.getElementById('asg-q'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); } else UI.render();
+  };
+
   /* ---------- USER MANAGEMENT (ASGM - Sales) ---------- */
   const STU = { pending: 'รออนุมัติ', approved: 'ใช้งาน', suspended: 'ระงับ' };
   P.users = () => {
@@ -152,7 +198,7 @@
     UI.closeModal(); UI.run(() => api.saveUser(u), 'บันทึกผู้ใช้แล้ว');
   };
   A['user-del'] = (el) => {
-    const u = S.ctx.users.find((x) => x.id === el.dataset.id); if (!u) return;
+    const u = (S.adminUsers || []).find((x) => x.id === el.dataset.id); if (!u) return UI.toast('ไม่พบผู้ใช้ — กรุณารีเฟรชหน้า', true);
     UI.modal(`<h3>ลบผู้ใช้</h3><p>ต้องการลบ <b>${esc(u.full_name)}</b> (${esc(u.email)}) ออกจากระบบถาวรใช่ไหม?</p>
       <p class="sub">ลบได้เฉพาะผู้ใช้ที่ยังไม่มีประวัติงาน (เช่น ข้อมูลผิดพลาด/เพิ่มเกิน) — ถ้ามีประวัติงานแล้ว ให้ใช้ "แก้ไข → สถานะ: ระงับ" แทน</p>
       <div class="row" style="justify-content:flex-end"><button class="btn" data-act="close-modal">ยกเลิก</button><button class="btn pri" id="udel-ok" style="background:var(--red-d,#b91c1c)">ลบถาวร</button></div>`);
